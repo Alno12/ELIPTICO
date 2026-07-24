@@ -102,7 +102,9 @@ const store = {
 
 /* ================= utilidades ================= */
 
-const iso = (d) => d.toISOString().slice(0, 10);
+/* data em componentes locais; toISOString() seria UTC e viraria o dia à noite em fuso negativo */
+const pad2 = (n) => String(n).padStart(2, "0");
+const iso = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 const dayjs = (s) => new Date(s + "T12:00:00");
 const daysAgo = (n) => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - n); return d; };
 const trimp = (s) => ZONES.reduce((a, z) => a + (s.zones[z.id] || 0) * z.w, 0);
@@ -506,12 +508,19 @@ function useStats(sessions, cfg) {
     const intervaloMedio = gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : null;
     const desdeUltimo = diffDias(asc[asc.length - 1].date, hoje);
 
-    let streak = 0, maiorStreak = 0, run = 0;
-    for (let i = weeks.length - 1; i >= 0; i--) {
-      if (weeks[i].sessoes > 0) { run++; if (i === weeks.length - 1 || streak) streak = run; }
-      else { maiorStreak = Math.max(maiorStreak, run); run = 0; if (i === weeks.length - 1) streak = 0; }
+    /* maior sequência: qualquer corrida de semanas com treino */
+    let maiorStreak = 0, run = 0;
+    for (const w of weeks) {
+      run = w.sessoes > 0 ? run + 1 : 0;
+      maiorStreak = Math.max(maiorStreak, run);
     }
-    maiorStreak = Math.max(maiorStreak, run, streak);
+    /* sequência atual: conta de trás para frente; a semana corrente,
+       se ainda vazia, está em aberto e não quebra a sequência */
+    let streak = 0;
+    for (let i = weeks.length - 1; i >= 0; i--) {
+      if (weeks[i].sessoes > 0) streak++;
+      else if (i < weeks.length - 1) break;
+    }
 
     /* aderência ao plano */
     let planoPrev = 0, planoFeito = 0;
