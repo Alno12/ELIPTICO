@@ -6,3 +6,10 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# O service worker precisa ser revalidado a cada carga; se ficar em cache,
+# uma versão antiga continua servindo o app depois de um deploy novo.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
