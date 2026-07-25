@@ -3,6 +3,8 @@
 App de registro de treinos aeróbicos por zona de frequência cardíaca, com análise de carga
 (TRIMP, ACWR, monotonia, modelo de aptidão/fadiga), tendências e um plano de treino de 10 semanas.
 
+Melhorias mapeadas e ainda não implementadas estão em [MELHORIAS.md](MELHORIAS.md).
+
 ## Rodar localmente
 
 ```bash
@@ -35,3 +37,12 @@ Gera a pasta `dist/`, pronta para publicar em qualquer hospedagem estática.
 Os dados ficam salvos em `localStorage`, no navegador do próprio usuário. Isso significa que os
 treinos não sincronizam entre dispositivos ou navegadores diferentes — cada um mantém seu próprio
 histórico local.
+
+Duas consequências práticas, e o que fazer sobre elas:
+
+- **Instale o app na tela de início.** O Safari no iOS descarta o `localStorage` de sites que
+  ficam 7 dias sem visita. Instalado, o histórico não é descartado. O app é um PWA e também
+  abre sem rede depois da primeira carga.
+- **Exporte de vez em quando.** Em Histórico → Backup dá para gerar um CSV e importá-lo de
+  volta depois, inclusive em outro aparelho. A importação não duplica treinos que já existem,
+  então reimportar o mesmo arquivo é seguro.
