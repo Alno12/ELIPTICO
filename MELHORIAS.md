@@ -9,7 +9,8 @@ a diferença importa na hora de decidir se vale confiar sem reproduzir.
 
 **Já resolvido** (não repetir): datas em fuso local, contador de sequência de semanas,
 contradição do "Tempo fácil", ressemeadura dos dados de exemplo, PWA instalável e offline,
-importação de CSV.
+importação de CSV, vazamento da janela de 17 semanas (1.1), extração da lógica pura e suíte
+de testes (2.1).
 
 ---
 
@@ -18,51 +19,29 @@ importação de CSV.
 O app existe para produzir números confiáveis sobre o treino. Estes são os pontos onde ele
 ainda não produz.
 
-### 1.1 A janela de 17 semanas vaza para métricas apresentadas como históricas
+### 1.1 A janela de 17 semanas vaza para métricas apresentadas como históricas — RESOLVIDO
 
-**Medido.** É o item mais importante da lista.
+`calcularStats` passou a montar uma série semanal de todo o histórico (`todasSemanas`);
+`weeks` virou apenas o recorte de 17 semanas que os gráficos desenham. Recordes, médias,
+semanas na meta, sequências e o perfil por dia da semana passaram a ler a série completa.
 
-`weeks` é construído com exatamente 17 posições (`src/App.jsx:469`) porque é isso que os
-gráficos de tendência exibem. Mas `completas` (`:488`) deriva dele, e daí saem métricas que a
-interface apresenta como se cobrissem todo o histórico.
+Medido no app, com 104 semanas de 60 min toda segunda-feira:
 
-O caso pior é o perfil por dia da semana (`:526-531`): o numerador soma **todas** as sessões
-já registradas naquele dia da semana, e o denominador é `completas.length`, que satura em 17.
-Numerador e denominador cobrem períodos diferentes, então o resultado não é uma média de coisa
-nenhuma — e o erro cresce quanto mais longo for o histórico.
+| Métrica | Verdade | Antes | Depois |
+|---|---|---|---|
+| Minutos médios na segunda | 60 min | 390 min | 60 min |
+| Semanas que bateram a meta | de 104 | de 16 | de 103 |
 
-Medição feita no app rodando, com 104 semanas injetadas contendo exatamente 60 min toda
-segunda-feira:
+Efeito colateral desejado: a média móvel de 4 semanas do gráfico de carga passou a ser
+calculada sobre a série completa, então a ponta esquerda do gráfico não sobe mais a partir
+do zero artificialmente.
 
-| Métrica | Verdade | Exibido |
-|---|---|---|
-| Minutos médios na segunda-feira | 60 min | **390 min** (6,5×) |
-| Semanas que bateram a meta | de 104 | **de 16** |
-| Maior sequência de semanas | 104 | 104 ✓ (já corrigido no PR #2) |
-
-Também afetados, pelo mesmo motivo:
-
-- `semanasNaMeta` / `totalCompletas` (`:491`, exibido em `:830`) — "X de Y" sugere todo o
-  histórico, conta no máximo 17 semanas.
-- `maiorSemana` e `maiorZ3` (`:605-606`, exibidos em `:854`) — estão sob a seção **Recordes**,
-  mas só procuram nas últimas 17 semanas. Um recorde que ignora o passado não é um recorde.
-- `mediaSemanal` / `sessoesPorSemana` (`:649-650`, exibidos em `:826-827`) — rotulados como
-  "Média de minutos/treinos por semana", são médias de 17 semanas. Com dados estáveis o valor
-  sai certo por coincidência; com volume variando ao longo do ano, não.
-
-**Abordagem sugerida.** O PR #2 já construiu, para as sequências, uma série semanal que cobre
-todo o histórico (a variável `serie`, em `useStats`). A correção é generalizar isso: produzir
-uma única série semanal completa, usar `weeks` **só** para o que é desenho de gráfico, e
-recalcular recordes, médias e o perfil por dia da semana em cima da série completa. Aproveitar
-para acertar os rótulos do que continuar sendo janela móvel — "nas últimas 17 semanas" dito
-explicitamente é melhor que um número ambíguo.
-
-**Esforço:** meio dia, sendo boa parte conferência dos números depois.
+Coberto por regressão em `src/lib/stats.test.js`.
 
 ### 1.2 RPE aceita qualquer valor e quebra o gráfico
 
 **Leitura de código.** O formulário sanitiza com `Math.max(0, Number(v) || 0)`
-(`src/App.jsx:1418`) e grava sem teto (`:1434`). Um 99 digitado por engano é aceito.
+(`src/App.jsx:921`) e grava sem teto (`:937`). Um 99 digitado por engano é aceito.
 
 O gráfico de dispersão mapeia o eixo vertical como `(v - 1) / 9`, assumindo a faixa 1–10. Com
 99 o ponto vai parar muito fora da área visível, e a reta de regressão é puxada junto — a
@@ -78,7 +57,7 @@ digitado por engano destrói a escala do gráfico de eficiência cardíaca.
 
 ### 1.3 "FC máxima registrada: 0 bpm"
 
-**Leitura de código.** `Math.max(...sessions.map((x) => x.maxHr || 0))` (`src/App.jsx:644`)
+**Leitura de código.** `Math.max(...sessions.map((x) => x.maxHr || 0))` (`src/lib/stats.js:263`)
 devolve 0 quando nenhum treino tem FC máxima preenchida — campo opcional. A linha de Recordes
 mostra "0 bpm", que parece defeito.
 
@@ -89,10 +68,11 @@ já é feito com `maiorSemana`.
 
 ### 1.4 Dados do `localStorage` entram sem validação
 
-**Leitura de código.** O que vem do armazenamento é usado direto. Em `weeks`, o cálculo de
-`z3mais` acessa `x.zones.z3 + x.zones.z4 + x.zones.z5` sem proteção: uma sessão gravada por
-uma versão anterior sem alguma dessas chaves produz `NaN`, que se propaga silenciosamente por
-todos os gráficos e totais.
+**Leitura de código.** O que vem do armazenamento é usado direto. Em `src/lib/stats.js:243`,
+`z3mais` da semana corrente acessa `x.zones.z3 + x.zones.z4 + x.zones.z5` sem proteção: uma
+sessão gravada por uma versão anterior sem alguma dessas chaves produz `NaN`, que se propaga
+silenciosamente por todos os gráficos e totais. (A série semanal, em `:103`, já ganhou guardas
+`|| 0` ao ser reescrita no item 1.1 — mas a proteção pontual não substitui validar na entrada.)
 
 Hoje o risco é baixo — tanto o formulário quanto a importação sempre gravam as cinco zonas. Mas
 é exatamente o tipo de coisa que quebra na próxima mudança de esquema, e o sintoma (`NaN`
@@ -108,18 +88,17 @@ dá para aproveitar a forma.
 
 ## P2 — O código não se defende sozinho
 
-### 2.1 Não há testes
+### 2.1 Não há testes — RESOLVIDO
 
-Zero cobertura. Todas as verificações feitas até aqui foram harnesses descartáveis, montados
-por fora e jogados fora depois. Isso não escala: o motor de estatística tem umas cinquenta
-métricas derivadas e nenhuma rede de proteção.
+A lógica pura saiu de `App.jsx` para `src/lib/`: `util.js`, `datas.js`, `treino.js`,
+`stats.js` e `csv.js`. O motor de estatística virou `calcularStats(sessions, cfg)`, uma
+função pura sem React — `useStats` agora é só um `useMemo` em cima dela.
 
-**Abordagem sugerida.** Extrair `useStats` e os utilitários de data para um módulo puro, sem
-React, e cobrir com Vitest. O corte natural é: entra `(sessions, cfg)`, sai o objeto de
-estatísticas — testável sem montar componente. Priorizar os casos que já mordem: histórico
-vazio, uma única sessão, histórico longo (o item 1.1), virada de fuso e de horário de verão.
+82 testes em Vitest (`npm test`), cobrindo datas e fusos, round-trip de CSV com entradas
+malformadas, sequências de semanas e os agregados do item 1.1.
 
-**Esforço:** dois a três dias para uma cobertura que valha.
+Falta cobrir: o próprio `App.jsx` (componentes e estado), que continua sem teste. Para isso
+seria preciso Testing Library e um ambiente jsdom — vale quando 2.3 avançar.
 
 ### 2.2 Sem lint, sem formatação, sem CI
 
@@ -131,17 +110,19 @@ sozinho pelo menos um problema real deste código.
 
 **Esforço:** meio dia.
 
-### 2.3 `App.jsx` tem 2.750 linhas
+### 2.3 `App.jsx` tem 2.234 linhas
 
-Constantes, motor de estatística, quatro telas, três folhas modais, nove gráficos SVG e a folha
-de estilos inteira, tudo num arquivo.
+Depois do item 2.1 saíram as constantes e o motor de estatística. Continuam no arquivo: quatro
+telas, três folhas modais, nove gráficos SVG e a folha de estilos inteira.
 
-**Abordagem sugerida.** `stats.js`, `datas.js`, `csv.js`, `charts/`, `ui/`, `styles.js`.
+**Abordagem sugerida.** `charts/`, `ui/`, `screens/`, `styles.js`.
 
-**Importante:** fazer isso **depois** de 2.1. Quebrar um arquivo sem testes não reduz risco,
-apenas o transfere para o momento do merge. A ordem correta é testes primeiro, separação depois.
+O pré-requisito (2.1) já está satisfeito: a lógica pura saiu e tem cobertura. O que resta em
+`App.jsx` é interface — telas, folhas modais, gráficos SVG e a folha de estilos. Essa parte
+ainda não tem teste, então a separação continua sendo uma refatoração às cegas; um smoke test
+de navegador cobrindo as quatro abas reduz bastante o risco antes de mexer.
 
-**Esforço:** um dia, e vira dois se vier antes dos testes.
+**Esforço:** um dia.
 
 ---
 
@@ -168,7 +149,7 @@ Itens independentes, do mais para o menos grave:
 - **Gráficos sem alternativa textual.** Nove SVGs sem `role="img"` nem `aria-label`. Para
   leitor de tela, a aba Tendências é uma página vazia. Um resumo de uma frase por gráfico já
   mudaria isso.
-- **`aria-current={on}`** (`src/App.jsx:2540`) gera `aria-current="false"` no elemento não
+- **`aria-current={on}`** (`src/App.jsx:2024`) gera `aria-current="false"` no elemento não
   selecionado, o que não é valor válido. Deveria ser `aria-current={on ? "page" : undefined}`.
 - **Campos sem `<label>`.** Os `<input>` dependem de proximidade visual.
 - **`maximum-scale=1`** no viewport (`index.html:5`) sinaliza bloqueio de zoom.
@@ -177,7 +158,7 @@ Itens independentes, do mais para o menos grave:
 
 ### 3.3 Excluir treino não pede confirmação nem tem volta
 
-**Leitura de código.** O botão Excluir (`src/App.jsx:1355`) apaga na hora. O toast que aparece
+**Leitura de código.** O botão Excluir (`src/App.jsx:858`) apaga na hora. O toast que aparece
 depois é informativo, não oferece desfazer. Um toque errado numa lista densa apaga um registro
 sem recurso.
 
@@ -205,9 +186,10 @@ têm que mudar juntos.
 
 ### 4.2 Desempenho do motor de estatística
 
-**Leitura de código.** `useStats` faz cerca de vinte varreduras completas de `sessions`, várias
-delas dentro de laços — os 28 dias de `acum` chamam `filter` 28 vezes, cada `weeks` outras 17.
-`Tendencias` refaz até 90 filtragens a cada renderização, sem `useMemo`.
+**Leitura de código.** `calcularStats` (`src/lib/stats.js`) faz cerca de vinte varreduras
+completas de `sessions`, várias dentro de laços — os 28 dias de `acum` chamam `filter` 28 vezes.
+`Tendencias` refaz até 90 filtragens a cada renderização, sem `useMemo`. A série semanal já foi
+indexada por semana no item 1.1; o resto continua varrendo.
 
 Com algumas centenas de sessões não se nota. É um problema de daqui a alguns anos de uso, não
 de agora.
@@ -252,7 +234,7 @@ para comparar as suas próprias semanas entre si. O app já diz isso na aba Aná
 correto — vale mantê-lo em qualquer reescrita.
 
 Um detalhe técnico que não é defeito, mas convém conhecer: a razão aguda/crônica usa a variante
-*acoplada* (`src/App.jsx:630`), em que os 7 dias recentes entram também no denominador de 28
+*acoplada* (`src/lib/stats.js:249`), em que os 7 dias recentes entram também no denominador de 28
 dias. É a formulação original de Gabbett e funciona, mas infla a razão em semanas de pico
 comparada à variante desacoplada. Se algum dia o número parecer conservador demais numa semana
 forte, a causa é essa.
@@ -261,9 +243,8 @@ forte, a causa é essa.
 
 ## Ordem sugerida
 
-1. **1.1** — é o único item que faz o app mostrar número errado hoje, e piora com o tempo.
-2. **1.2, 1.3, 1.4** — baratos, e 1.4 evita uma classe inteira de defeito futuro.
-3. **2.1** — destrava tudo que vem depois com segurança.
-4. **2.2**, depois **2.3**.
-5. **3.x** conforme incomodar; o modo escuro é o de maior retorno percebido.
-6. **4.x** por último; 4.4 é decisão de produto, não de engenharia.
+1. **1.2, 1.3, 1.4** — baratos, e 1.4 evita uma classe inteira de defeito futuro.
+2. **2.2** (lint e CI) — agora que há testes, faz sentido rodá-los automaticamente.
+3. **2.3** — a separação do que sobrou de `App.jsx`.
+4. **3.x** conforme incomodar; o modo escuro é o de maior retorno percebido.
+5. **4.x** por último; 4.4 é decisão de produto, não de engenharia.

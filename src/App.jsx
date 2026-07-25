@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 
-/* ================= constantes ================= */
+import { sum, fmt, clamp, cap } from "./lib/util.js";
+import { DIAS_CURTO, DIAS_NOME, iso, dayjs, daysAgo, diffDias, mondayOf, longDate, shortDate } from "./lib/datas.js";
+import { ZONES, trimp, totalZ, PLANO, semanaDoPlano, treinoDoDia, proximoTreino, seed, faixa } from "./lib/treino.js";
+import { chaveSessao, sessoesDeCsv } from "./lib/csv.js";
+import { calcularStats, escala, escalaFacil } from "./lib/stats.js";
 
-const ZONES = [
-  { id: "z1", label: "Zona 1", short: "1", name: "Recuperação", color: "#5AC8FA", light: "#8FDCFC", w: 1 },
-  { id: "z2", label: "Zona 2", short: "2", name: "Base aeróbica", color: "#30D158", light: "#6BE889", w: 2 },
-  { id: "z3", label: "Zona 3", short: "3", name: "Tempo", color: "#FFD60A", light: "#FFE566", w: 3 },
-  { id: "z4", label: "Zona 4", short: "4", name: "Limiar", color: "#FF9F0A", light: "#FFBC55", w: 4 },
-  { id: "z5", label: "Zona 5", short: "5", name: "Máximo", color: "#FF375F", light: "#FF7A96", w: 5 },
-];
+/* ================= constantes ================= */
 
 const C = {
   bg: "#F2F2F7",
@@ -33,59 +31,6 @@ const DEFAULT_CFG = {
   vo2max: 41.8, planoInicio: null, planoAtivo: true, demoLimpo: false,
 };
 
-const DIAS_CURTO = ["D", "S", "T", "Q", "Q", "S", "S"];
-const DIAS_NOME = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
-
-/* ================= plano de 10 semanas ================= */
-
-const PLANO = [
-  {
-    de: 1, ate: 2, nome: "Adaptação",
-    resumo: "Introduzir a Zona 4 em blocos curtos, sem buscar ainda o 4×4 completo.",
-    treinos: [
-      { dia: 1, id: "A", nome: "Contínuo Z2", z: { z1: 8, z2: 22 }, desc: "5 min aquecendo em Z1, 22 min contínuos em Z2, 3 min desacelerando." },
-      { dia: 3, id: "B", nome: "Intervalado 5×2", z: { z1: 21, z4: 10 }, desc: "5 min aquecendo, depois 5 blocos de 2 min em Z4 com 3 min fáceis entre eles, 4 min desacelerando." },
-      { dia: 5, id: "C", nome: "Contínuo Z2", z: { z1: 8, z2: 22 }, desc: "5 min aquecendo em Z1, 22 min contínuos em Z2, 3 min desacelerando." },
-    ],
-  },
-  {
-    de: 3, ate: 4, nome: "Blocos de 3 minutos",
-    resumo: "Blocos mais longos em Z4, com o mesmo número de repetições.",
-    treinos: [
-      { dia: 1, id: "A", nome: "Contínuo Z2", z: { z1: 8, z2: 24 }, desc: "5 min aquecendo, 24 min em Z2, 3 min desacelerando." },
-      { dia: 3, id: "B", nome: "Intervalado 4×3", z: { z1: 18, z4: 12 }, desc: "5 min aquecendo, 4 blocos de 3 min em Z4 com 3 min fáceis entre eles, 4 min desacelerando." },
-      { dia: 5, id: "C", nome: "Contínuo Z2", z: { z1: 8, z2: 24 }, desc: "5 min aquecendo, 24 min em Z2, 3 min desacelerando." },
-    ],
-  },
-  {
-    de: 5, ate: 6, nome: "4×4 completo",
-    resumo: "O protocolo clássico de 4 blocos de 4 minutos, o estímulo mais estudado para VO₂ máx.",
-    treinos: [
-      { dia: 1, id: "A", nome: "Contínuo Z2", z: { z1: 8, z2: 27 }, desc: "5 min aquecendo, 27 min em Z2, 3 min desacelerando." },
-      { dia: 3, id: "B", nome: "Intervalado 4×4", z: { z1: 18, z4: 16 }, desc: "5 min aquecendo, 4 blocos de 4 min em Z4 com 3 min fáceis entre eles, 4 min desacelerando." },
-      { dia: 5, id: "C", nome: "Contínuo Z2", z: { z1: 8, z2: 27 }, desc: "5 min aquecendo, 27 min em Z2, 3 min desacelerando." },
-    ],
-  },
-  {
-    de: 7, ate: 8, nome: "Consolidação",
-    resumo: "Mantém o 4×4 e adiciona uma dose leve de Z3 no terceiro treino.",
-    treinos: [
-      { dia: 1, id: "A", nome: "Contínuo Z2", z: { z1: 8, z2: 30 }, desc: "5 min aquecendo, 30 min em Z2, 3 min desacelerando." },
-      { dia: 3, id: "B", nome: "Intervalado 4×4", z: { z1: 18, z4: 16 }, desc: "5 min aquecendo, 4 blocos de 4 min em Z4 com 3 min fáceis entre eles, 4 min desacelerando." },
-      { dia: 5, id: "C", nome: "Contínuo com Z3", z: { z1: 7, z2: 20, z3: 8 }, desc: "5 min aquecendo, 20 min em Z2, 8 min em Z3, 2 min desacelerando." },
-    ],
-  },
-  {
-    de: 9, ate: 10, nome: "Pico",
-    resumo: "Uma repetição a mais em Z4 e recuperação um pouco mais curta entre blocos.",
-    treinos: [
-      { dia: 1, id: "A", nome: "Contínuo Z2", z: { z1: 8, z2: 32 }, desc: "5 min aquecendo, 32 min em Z2, 3 min desacelerando." },
-      { dia: 3, id: "B", nome: "Intervalado 5×4", z: { z1: 19, z4: 20 }, desc: "5 min aquecendo, 5 blocos de 4 min em Z4 com 2 a 3 min fáceis entre eles, 4 min desacelerando." },
-      { dia: 5, id: "C", nome: "Contínuo leve", z: { z1: 8, z2: 27 }, desc: "5 min aquecendo, 27 min em Z2 num ritmo confortável, 3 min desacelerando." },
-    ],
-  },
-];
-
 /* ================= armazenamento tolerante a falha ================= */
 
 const store = {
@@ -102,132 +47,9 @@ const store = {
 
 /* ================= utilidades ================= */
 
-/* data em componentes locais; toISOString() seria UTC e viraria o dia à noite em fuso negativo */
-const pad2 = (n) => String(n).padStart(2, "0");
-const iso = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-const dayjs = (s) => new Date(s + "T12:00:00");
-const daysAgo = (n) => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - n); return d; };
-const trimp = (s) => ZONES.reduce((a, z) => a + (s.zones[z.id] || 0) * z.w, 0);
-const totalZ = (z) => ZONES.reduce((a, k) => a + (z[k.id] || 0), 0);
-const cargaZ = (z) => ZONES.reduce((a, k) => a + (z[k.id] || 0) * k.w, 0);
-const sum = (a, f) => a.reduce((x, s) => x + f(s), 0);
-const fmt = (n, d = 0) => Number(n).toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const diffDias = (a, b) => Math.round((dayjs(b) - dayjs(a)) / 864e5);
-const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
-
-function mondayOf(date) {
-  const d = new Date(date);
-  d.setHours(12, 0, 0, 0);
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-  return d;
-}
-
-function desvio(arr) {
-  if (arr.length < 2) return 0;
-  const m = arr.reduce((a, b) => a + b, 0) / arr.length;
-  return Math.sqrt(arr.reduce((a, b) => a + (b - m) ** 2, 0) / arr.length);
-}
-
-function pearson(xs, ys) {
-  const n = xs.length;
-  if (n < 4) return null;
-  const mx = xs.reduce((a, b) => a + b, 0) / n;
-  const my = ys.reduce((a, b) => a + b, 0) / n;
-  let num = 0, dx = 0, dy = 0;
-  for (let i = 0; i < n; i++) {
-    num += (xs[i] - mx) * (ys[i] - my);
-    dx += (xs[i] - mx) ** 2;
-    dy += (ys[i] - my) ** 2;
-  }
-  return dx && dy ? num / Math.sqrt(dx * dy) : null;
-}
-
-function mulberry32(a) {
-  return function () {
-    a |= 0; a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 function topRounded(x, y, w, h, r) {
   const rr = Math.min(r, w / 2, Math.max(h, 0.01));
   return `M${x},${y + rr} Q${x},${y} ${x + rr},${y} L${x + w - rr},${y} Q${x + w},${y} ${x + w},${y + rr} L${x + w},${y + h} L${x},${y + h} Z`;
-}
-
-/* --------- plano --------- */
-
-function semanaDoPlano(cfg, date = new Date()) {
-  if (!cfg.planoAtivo || !cfg.planoInicio) return null;
-  const n = Math.floor(diffDias(cfg.planoInicio, iso(mondayOf(date))) / 7) + 1;
-  return n >= 1 && n <= 10 ? n : null;
-}
-
-const faseDaSemana = (n) => PLANO.find((f) => n >= f.de && n <= f.ate);
-
-function treinoDoDia(cfg, dateIso) {
-  const n = semanaDoPlano(cfg, dayjs(dateIso));
-  if (!n) return null;
-  const fase = faseDaSemana(n);
-  const t = fase.treinos.find((x) => x.dia === dayjs(dateIso).getDay());
-  return t ? { ...t, semana: n, fase: fase.nome } : null;
-}
-
-function proximoTreino(cfg) {
-  for (let i = 0; i < 14; i++) {
-    const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + i);
-    const t = treinoDoDia(cfg, iso(d));
-    if (t) return { ...t, data: iso(d), emDias: i };
-  }
-  return null;
-}
-
-/* ================= dados de demonstração ================= */
-
-function seed() {
-  const rnd = mulberry32(70423);
-  const out = [];
-  for (let ago = 132; ago >= 0; ago--) {
-    const d = daysAgo(ago);
-    const wd = d.getDay();
-    const dias = ago < 45 ? [1, 2, 4, 6] : [1, 3, 5];
-    if (!dias.includes(wd)) continue;
-    if (rnd() < 0.11) continue;
-
-    const p = (132 - ago) / 132;
-    const intervalado = wd === 2 || wd === 4;
-    const dur = Math.round(32 + 16 * p + (rnd() * 8 - 4));
-    const aq = 5 + Math.round(rnd() * 2);
-    const meio = dur - aq - 4;
-
-    const z = { z1: aq + 4, z2: 0, z3: 0, z4: 0, z5: 0 };
-    if (intervalado) {
-      z.z4 = Math.round(meio * (0.16 + 0.06 * p));
-      z.z5 = rnd() < 0.45 ? Math.round(meio * 0.05) : 0;
-      z.z3 = Math.round(meio * 0.26);
-      z.z2 = meio - z.z3 - z.z4 - z.z5;
-    } else {
-      z.z3 = Math.round(meio * (0.12 + 0.1 * p));
-      z.z4 = rnd() < 0.3 ? Math.round(meio * 0.05) : 0;
-      z.z2 = meio - z.z3 - z.z4;
-    }
-    const avgHr = Math.round((intervalado ? 152 : 143) - 7 * p + (rnd() * 5 - 2.5));
-
-    out.push({
-      id: `seed-${ago}`,
-      date: iso(d),
-      zones: z,
-      total: totalZ(z),
-      avgHr,
-      maxHr: Math.round(avgHr + (intervalado ? 26 : 15) + rnd() * 6),
-      rpe: clamp(Math.round(cargaZ(z) / 22 + (rnd() * 1.6 - 0.8)), 3, 10),
-      notes: "",
-      demo: true,
-    });
-  }
-  return out.sort((a, b) => b.date.localeCompare(a.date));
 }
 
 /* ================= app ================= */
@@ -389,269 +211,8 @@ export default function App() {
 /* ================= estatísticas ================= */
 
 function useStats(sessions, cfg) {
-  return useMemo(() => {
-    if (!sessions.length) return null;
-    const asc = [...sessions].sort((a, b) => a.date.localeCompare(b.date));
-    const hoje = iso(new Date());
-    const cut = (n) => iso(daysAgo(n));
-
-    const w0 = sessions.filter((x) => x.date >= cut(6));
-    const w1 = sessions.filter((x) => x.date >= cut(13) && x.date < cut(6));
-    const d28 = sessions.filter((x) => x.date >= cut(27));
-    const d28ant = sessions.filter((x) => x.date >= cut(55) && x.date < cut(27));
-
-    const load0 = sum(w0, trimp);
-    const load1 = sum(w1, trimp);
-    const cronica = sum(d28, trimp) / 4;
-
-    /* semana corrente, segunda a domingo */
-    const seg = mondayOf(new Date());
-    const semanaAtual = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(seg); d.setDate(d.getDate() + i);
-      const dISO = iso(d);
-      const ses = sessions.filter((x) => x.date === dISO);
-      semanaAtual.push({
-        date: dISO,
-        wd: d.getDay(),
-        futuro: dISO > hoje,
-        hoje: dISO === hoje,
-        sessoes: ses,
-        total: sum(ses, (x) => x.total),
-        carga: sum(ses, trimp),
-        zones: Object.fromEntries(ZONES.map((z) => [z.id, sum(ses, (x) => x.zones[z.id] || 0)])),
-        plano: treinoDoDia(cfg, dISO),
-      });
-    }
-    const semanaPassada = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(seg); d.setDate(d.getDate() - 7 + i);
-      const ses = sessions.filter((x) => x.date === iso(d));
-      semanaPassada.push({ total: sum(ses, (x) => x.total) });
-    }
-
-    /* carga diária contínua */
-    const porDia = {};
-    sessions.forEach((x) => { porDia[x.date] = (porDia[x.date] || 0) + trimp(x); });
-    const inicio = asc[0].date;
-    const nDias = diffDias(inicio, hoje) + 1;
-    const daily = [];
-    for (let i = 0; i < nDias; i++) {
-      const d = new Date(dayjs(inicio)); d.setDate(d.getDate() + i);
-      daily.push({ date: iso(d), carga: porDia[iso(d)] || 0 });
-    }
-
-    /* aptidão, fadiga, forma */
-    let ctl = 0, atl = 0;
-    const pmc = daily.map((d) => {
-      const tsb = ctl - atl;
-      ctl += (d.carga - ctl) / 42;
-      atl += (d.carga - atl) / 7;
-      return { date: d.date, ctl, atl, tsb };
-    });
-    const forma = pmc[pmc.length - 1] || { ctl: 0, atl: 0, tsb: 0 };
-    const cargaDiariaMedia = daily.slice(-28).reduce((a, b) => a + b.carga, 0) / 28;
-    const projetar = (fator, dias = 28) => {
-      let c = forma.ctl;
-      for (let i = 0; i < dias; i++) c += (cargaDiariaMedia * fator - c) / 42;
-      return c;
-    };
-
-    /* monotonia e strain */
-    const ult7 = daily.slice(-7).map((d) => d.carga);
-    const media7 = ult7.reduce((a, b) => a + b, 0) / Math.max(1, ult7.length);
-    const sd7 = desvio(ult7);
-    const monotonia = sd7 > 0 ? media7 / sd7 : null;
-    const strain = monotonia != null ? load0 * monotonia : null;
-
-    /* séries semanais */
-    const weeks = [];
-    for (let i = 16; i >= 0; i--) {
-      const start = mondayOf(daysAgo(i * 7));
-      const end = new Date(start); end.setDate(end.getDate() + 6);
-      const inWeek = sessions.filter((x) => x.date >= iso(start) && x.date <= iso(end));
-      const zw = Object.fromEntries(ZONES.map((z) => [z.id, sum(inWeek, (x) => x.zones[z.id] || 0)]));
-      weeks.push({
-        start: iso(start),
-        completa: iso(end) < hoje,
-        minutos: sum(inWeek, (x) => x.total),
-        carga: sum(inWeek, trimp),
-        sessoes: inWeek.length,
-        z3mais: sum(inWeek, (x) => x.zones.z3 + x.zones.z4 + x.zones.z5),
-        zones: zw,
-      });
-    }
-    weeks.forEach((w, i) => {
-      const win = weeks.slice(Math.max(0, i - 3), i + 1);
-      w.media4 = win.reduce((a, b) => a + b.carga, 0) / win.length;
-    });
-    const completas = weeks.filter((w) => w.completa && w.sessoes > 0);
-    const ult8 = completas.slice(-8);
-    const variacaoSemanal = desvio(ult8.map((w) => w.minutos));
-    const semanasNaMeta = completas.filter((w) => w.minutos >= cfg.weeklyGoal).length;
-
-    /* zonas */
-    const zoneTotals = Object.fromEntries(ZONES.map((z) => [z.id, sum(sessions, (x) => x.zones[z.id] || 0)]));
-    const grand = Object.values(zoneTotals).reduce((a, b) => a + b, 0);
-    const polar = grand ? ((zoneTotals.z1 + zoneTotals.z2) / grand) * 100 : 0;
-
-    /* densidade */
-    const dens = (arr) => {
-      const m = sum(arr, (x) => x.total);
-      return m ? sum(arr, trimp) / m : null;
-    };
-
-    /* frequência cardíaca */
-    const hrSes = asc.filter((x) => x.avgHr && x.zones.z4 + x.zones.z5 < 3).slice(-12);
-    let deltaHr = null;
-    if (hrSes.length >= 5) {
-      const n = hrSes.length, mx = (n - 1) / 2;
-      const my = hrSes.reduce((a, b) => a + b.avgHr, 0) / n;
-      let nume = 0, deno = 0;
-      hrSes.forEach((x, i) => { nume += (i - mx) * (x.avgHr - my); deno += (i - mx) ** 2; });
-      deltaHr = deno ? (nume / deno) * (n - 1) : 0;
-    }
-    const reserva = cfg.maxHr - cfg.restHr;
-    const comHr28 = d28.filter((x) => x.avgHr);
-    const pctFCR = comHr28.length && reserva > 0
-      ? (sum(comHr28, (x) => (x.avgHr - cfg.restHr) / reserva) / comHr28.length) * 100 : null;
-
-    /* percepção */
-    const comRpe = sessions.filter((x) => x.rpe);
-    const rpeMedia = comRpe.length ? sum(comRpe, (x) => x.rpe) / comRpe.length : null;
-    const rpeCorr = comRpe.length >= 6 ? pearson(comRpe.map(trimp), comRpe.map((x) => x.rpe)) : null;
-    const rpePontos = comRpe.map((x) => ({ x: trimp(x), y: x.rpe }));
-
-    /* perfil por dia da semana */
-    const perfilDia = DIAS_CURTO.map((_, wd) => {
-      const ses = sessions.filter((x) => dayjs(x.date).getDay() === wd);
-      const semanas = Math.max(1, completas.length);
-      return { wd, total: sum(ses, (x) => x.total), media: sum(ses, (x) => x.total) / semanas, sessoes: ses.length };
-    });
-    const melhorDia = perfilDia.reduce((a, b) => (b.total > a.total ? b : a)).wd;
-
-    /* acumulado 28 dias vs 28 anteriores */
-    const acum = (offset) => {
-      const arr = [];
-      let t = 0;
-      for (let i = 27; i >= 0; i--) {
-        const d = iso(daysAgo(i + offset));
-        t += sum(sessions.filter((x) => x.date === d), (x) => x.total);
-        arr.push(t);
-      }
-      return arr;
-    };
-
-    /* consistência */
-    const gaps = [];
-    for (let i = 1; i < asc.length; i++) gaps.push(diffDias(asc[i - 1].date, asc[i].date));
-    const intervaloMedio = gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : null;
-    const desdeUltimo = diffDias(asc[asc.length - 1].date, hoje);
-
-    /* série semanal de todo o histórico; `weeks` só cobre 17 semanas e saturaria as sequências */
-    const semanasComTreino = new Set(sessions.map((x) => iso(mondayOf(dayjs(x.date)))));
-    const primeiraSemana = mondayOf(dayjs(inicio));
-    const nSemanas = Math.floor(diffDias(iso(primeiraSemana), iso(mondayOf(new Date()))) / 7) + 1;
-    const serie = [];
-    for (let i = 0; i < nSemanas; i++) {
-      const d = new Date(primeiraSemana); d.setDate(d.getDate() + i * 7);
-      serie.push(semanasComTreino.has(iso(d)));
-    }
-
-    /* maior sequência: qualquer corrida de semanas com treino */
-    let maiorStreak = 0, run = 0;
-    for (const tem of serie) {
-      run = tem ? run + 1 : 0;
-      maiorStreak = Math.max(maiorStreak, run);
-    }
-    /* sequência atual: conta de trás para frente; a semana corrente,
-       se ainda vazia, está em aberto e não quebra a sequência */
-    let streak = 0;
-    for (let i = serie.length - 1; i >= 0; i--) {
-      if (serie[i]) streak++;
-      else if (i < serie.length - 1) break;
-    }
-
-    /* aderência ao plano */
-    let planoPrev = 0, planoFeito = 0;
-    if (cfg.planoAtivo && cfg.planoInicio) {
-      for (let i = 0; i < 28; i++) {
-        const d = iso(daysAgo(i));
-        if (d < cfg.planoInicio) continue;
-        if (treinoDoDia(cfg, d)) {
-          planoPrev++;
-          if (sessions.some((x) => x.date === d)) planoFeito++;
-        }
-      }
-    }
-
-    /* meses */
-    const meses = {};
-    sessions.forEach((x) => {
-      const k = x.date.slice(0, 7);
-      meses[k] ||= { minutos: 0, carga: 0, sessoes: 0 };
-      meses[k].minutos += x.total; meses[k].carga += trimp(x); meses[k].sessoes += 1;
-    });
-    const mesAtualK = hoje.slice(0, 7);
-    const mesAntK = iso(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 15)).slice(0, 7);
-    const mesAtual = meses[mesAtualK] || { minutos: 0, carga: 0, sessoes: 0 };
-    const mesAnterior = meses[mesAntK] || null;
-    const diaDoMes = new Date().getDate();
-    const diasNoMes = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-
-    /* recordes */
-    const maisLonga = asc.reduce((a, b) => (b.total > a.total ? b : a));
-    const maisPesada = asc.reduce((a, b) => (trimp(b) > trimp(a) ? b : a));
-    const maiorSemana = completas.length ? completas.reduce((a, b) => (b.minutos > a.minutos ? b : a)) : null;
-    const maiorZ3 = completas.length ? completas.reduce((a, b) => (b.z3mais > a.z3mais ? b : a)) : null;
-
-    const durs = sessions.map((x) => x.total);
-    const minSemana = sum(semanaAtual, (d) => d.total);
-
-    return {
-      total: sessions.length,
-      horas: sum(sessions, (x) => x.total) / 60,
-      cargaTotal: sum(sessions, trimp),
-      primeiro: inicio,
-      semanaAtual, semanaPassada,
-      minSemana,
-      cargaSemana: sum(semanaAtual, (d) => d.carga),
-      sessoesSemana: sum(semanaAtual, (d) => d.sessoes.length),
-      z3Semana: sum(semanaAtual, (d) => d.zones.z3 + d.zones.z4 + d.zones.z5),
-      minSemanaPassada: sum(semanaPassada, (d) => d.total),
-      semana: {
-        minutos: sum(w0, (x) => x.total), sessoes: w0.length, carga: load0,
-        z3mais: sum(w0, (x) => x.zones.z3 + x.zones.z4 + x.zones.z5),
-      },
-      delta: {
-        minutos: sum(w0, (x) => x.total) - sum(w1, (x) => x.total),
-        carga: load1 ? Math.round(((load0 - load1) / load1) * 100) : null,
-      },
-      acwr: cronica > 0 ? load0 / cronica : null,
-      cronica, forma, pmc, monotonia, strain,
-      projetar, cargaDiariaMedia,
-      zoneTotals, grand, polar, weeks, completas, deltaHr, hrSes, pctFCR,
-      densidade: dens(sessions), densidade28: dens(d28), densidade28ant: dens(d28ant),
-      rpeMedia, rpeCorr, rpePontos,
-      intervalados: sessions.filter((x) => x.zones.z4 + x.zones.z5 >= 4).length,
-      continuos: sessions.filter((x) => x.zones.z4 + x.zones.z5 < 4).length,
-      intervaloMedio, desdeUltimo, streak, maiorStreak, melhorDia, perfilDia,
-      acum28: acum(0), acum28ant: acum(28),
-      variacaoSemanal, semanasNaMeta, totalCompletas: completas.length,
-      planoPrev, planoFeito,
-      mediaDur: durs.reduce((a, b) => a + b, 0) / durs.length,
-      maiorDur: Math.max(...durs),
-      fcMaxReg: Math.max(...sessions.map((x) => x.maxHr || 0)),
-      mesAtual, mesAnterior, meses,
-      projecaoMes: Math.round((mesAtual.minutos / diaDoMes) * diasNoMes),
-      recordes: { maisLonga, maisPesada, maiorSemana, maiorZ3 },
-      meta: cfg.weeklyGoal,
-      mediaSemanal: completas.length ? sum(completas, (w) => w.minutos) / completas.length : 0,
-      sessoesPorSemana: completas.length ? sum(completas, (w) => w.sessoes) / completas.length : 0,
-    };
-  }, [sessions, cfg]);
+  return useMemo(() => calcularStats(sessions, cfg), [sessions, cfg]);
 }
-
 /* ================= tela: semana ================= */
 
 function Resumo({ st, cfg, sessions, onAjustes, onPlano, onRegistrar }) {
@@ -1188,64 +749,6 @@ function Analise({ st, cfg, onPlano }) {
       </Card>
     </>
   );
-}
-
-/* ================= importação de CSV ================= */
-
-/* parser mínimo, mas com aspas e quebras de linha dentro de campo — o campo
-   "notas" é texto livre digitado pelo usuário e pode conter vírgula e aspas */
-function parseCsv(texto) {
-  const t = texto.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
-  const linhas = [];
-  let campo = "", linha = [], aspas = false;
-  for (let i = 0; i < t.length; i++) {
-    const c = t[i];
-    if (aspas) {
-      if (c !== '"') campo += c;
-      else if (t[i + 1] === '"') { campo += '"'; i++; }
-      else aspas = false;
-    } else if (c === '"') aspas = true;
-    else if (c === ",") { linha.push(campo); campo = ""; }
-    else if (c === "\n") { linha.push(campo); linhas.push(linha); linha = []; campo = ""; }
-    else campo += c;
-  }
-  if (campo !== "" || linha.length) { linha.push(campo); linhas.push(linha); }
-  return linhas;
-}
-
-/* identidade de um treino para efeito de deduplicação na reimportação */
-const chaveSessao = (x) => `${x.date}|${ZONES.map((z) => x.zones[z.id] || 0).join("-")}`;
-
-function sessoesDeCsv(texto) {
-  const linhas = parseCsv(texto).filter((l) => l.some((c) => c.trim() !== ""));
-  if (linhas.length < 2) throw new Error("arquivo sem linhas de dados");
-  const cab = linhas[0].map((c) => c.trim().toLowerCase());
-  const col = (nome) => cab.indexOf(nome);
-  if (col("data") < 0) throw new Error("coluna 'data' não encontrada");
-  const num = (v) => {
-    const n = Number(String(v ?? "").trim().replace(",", "."));
-    return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
-  };
-  const sessoes = [];
-  let ignoradas = 0;
-  linhas.slice(1).forEach((l, k) => {
-    const date = String(l[col("data")] ?? "").trim();
-    const zones = Object.fromEntries(ZONES.map((z) => [z.id, num(l[col(z.id)])]));
-    const total = totalZ(zones);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(dayjs(date).getTime()) || !total) {
-      ignoradas++;
-      return;
-    }
-    sessoes.push({
-      id: `imp-${Date.now().toString(36)}-${k}`,
-      date, zones, total,
-      avgHr: num(l[col("fc_media")]) || null,
-      maxHr: num(l[col("fc_max")]) || null,
-      rpe: clamp(num(l[col("rpe")]), 0, 10) || null,
-      notes: String(l[col("notas")] ?? "").trim(),
-    });
-  });
-  return { sessoes, ignoradas };
 }
 
 /* ================= tela: histórico ================= */
@@ -2194,15 +1697,6 @@ const ICONS = {
   calendario: "M4 8h16M8 3v3M16 3v3M5 21h14a1 1 0 001-1V7a1 1 0 00-1-1H5a1 1 0 00-1 1v13a1 1 0 001 1z",
 };
 
-function escala(v, [a, b, c], invertido = false) {
-  if (invertido) return v < a ? "bom" : v < b ? "ok" : v < c ? "atencao" : "alto";
-  return v < a ? "baixo" : v < b ? "bom" : v < c ? "atencao" : "alto";
-}
-
-/* tempo fácil não tem faixa superior de risco: quanto maior, melhor.
-   O corte em 75% é o mesmo usado pela leitura em `insights`, para os dois não se contradizerem. */
-const escalaFacil = (v) => (v < 75 ? "atencao" : "bom");
-
 function insights(st) {
   const out = [];
 
@@ -2310,16 +1804,6 @@ function insights(st) {
   return out;
 }
 
-function faixa(cfg, i) {
-  const pc = [[0.5, 0.6], [0.6, 0.7], [0.7, 0.8], [0.8, 0.9], [0.9, 1]][i];
-  const calc = (p) => (cfg.method === "hrr"
-    ? Math.round(cfg.restHr + p * (cfg.maxHr - cfg.restHr))
-    : Math.round(p * cfg.maxHr));
-  return `${calc(pc[0])}–${calc(pc[1])}`;
-}
-
-const longDate = (d) => cap(dayjs(d).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" }));
-const shortDate = (d) => cap(dayjs(d).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" }).replace(/\./g, ""));
 
 /* ================= interface ================= */
 
