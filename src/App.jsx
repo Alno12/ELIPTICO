@@ -30,7 +30,7 @@ const KEY = "eliptico:v5:sessoes";
 const KEY_CFG = "eliptico:v5:config";
 const DEFAULT_CFG = {
   maxHr: 193, restHr: 65, method: "hrr", weeklyGoal: 150,
-  vo2max: 41.8, planoInicio: null, planoAtivo: true,
+  vo2max: 41.8, planoInicio: null, planoAtivo: true, demoLimpo: false,
 };
 
 const DIAS_CURTO = ["D", "S", "T", "Q", "Q", "S", "S"];
@@ -245,19 +245,23 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      let data = null;
-      try {
-        data = JSON.parse((await store.get(KEY)).value);
-      } catch { /* primeira abertura */ }
-      if (!Array.isArray(data) || !data.length) {
-        data = seed();
-        store.set(KEY, JSON.stringify(data)).catch(() => {});
-      }
       let conf = DEFAULT_CFG;
       try {
         conf = { ...DEFAULT_CFG, ...JSON.parse((await store.get(KEY_CFG)).value) };
       } catch { /* padrão */ }
       if (!conf.planoInicio) conf = { ...conf, planoInicio: iso(mondayOf(new Date())) };
+
+      let data = null;
+      try {
+        data = JSON.parse((await store.get(KEY)).value);
+      } catch { /* primeira abertura */ }
+      if (!Array.isArray(data)) data = [];
+      /* semeia exemplos só enquanto o usuário nunca limpou nada; depois disso,
+         histórico vazio é um estado legítimo e não deve ser sobrescrito */
+      if (!data.length && !conf.demoLimpo) {
+        data = seed();
+        store.set(KEY, JSON.stringify(data)).catch(() => {});
+      }
       setCfg(conf);
       setSessions(data);
       setReady(true);
@@ -299,6 +303,41 @@ export default function App() {
     setSheet("registrar");
   };
 
+  /* marca que o histórico passou a ser gerido pelo usuário: nunca mais semear exemplos por cima */
+  const marcarLimpo = (next = cfg) => saveCfg({ ...next, demoLimpo: true });
+
+  const excluirTreino = (id) => {
+    const restantes = sessions.filter((x) => x.id !== id);
+    if (!restantes.length) marcarLimpo();
+    commit(restantes, "Treino excluído");
+  };
+
+  const importarCsv = async (file) => {
+    let lidas;
+    try {
+      lidas = sessoesDeCsv(await file.text());
+    } catch {
+      setToast("Não foi possível ler este arquivo como CSV de treinos.");
+      return;
+    }
+    const { sessoes, ignoradas } = lidas;
+    if (!sessoes.length) {
+      setToast("Nenhum treino válido encontrado no arquivo.");
+      return;
+    }
+    const existentes = new Set(sessions.map(chaveSessao));
+    const novas = sessoes.filter((x) => !existentes.has(chaveSessao(x)));
+    if (!novas.length) {
+      setToast("Todos os treinos do arquivo já estavam no histórico.");
+      return;
+    }
+    const partes = [`${novas.length} ${novas.length === 1 ? "treino importado" : "treinos importados"}`];
+    if (sessoes.length - novas.length) partes.push(`${sessoes.length - novas.length} já existiam`);
+    if (ignoradas) partes.push(`${ignoradas} ${ignoradas === 1 ? "linha ignorada" : "linhas ignoradas"}`);
+    marcarLimpo();
+    commit([...novas, ...sessions].sort((a, b) => b.date.localeCompare(a.date)), partes.join(" · "));
+  };
+
   const st = useStats(sessions, cfg);
   const titulo = { resumo: "Semana", tendencias: "Tendências", analise: "Análise", historico: "Histórico" }[tab];
 
@@ -320,9 +359,10 @@ export default function App() {
             <Historico
               sessions={sessions}
               onEdit={(s) => abrirRegistro(s)}
-              onDelete={(id) => commit(sessions.filter((x) => x.id !== id), "Treino excluído")}
-              onClearDemo={() => commit(sessions.filter((x) => !x.demo), "Dados de exemplo removidos")}
-              onReseed={() => commit(seed(), "Dados de exemplo recarregados")}
+              onDelete={excluirTreino}
+              onClearDemo={() => { marcarLimpo(); commit(sessions.filter((x) => !x.demo), "Dados de exemplo removidos"); }}
+              onReseed={() => { saveCfg({ ...cfg, demoLimpo: false }); commit(seed(), "Dados de exemplo recarregados"); }}
+              onImport={importarCsv}
               onToast={setToast}
             />
           )}
@@ -508,18 +548,28 @@ function useStats(sessions, cfg) {
     const intervaloMedio = gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : null;
     const desdeUltimo = diffDias(asc[asc.length - 1].date, hoje);
 
+    /* série semanal de todo o histórico; `weeks` só cobre 17 semanas e saturaria as sequências */
+    const semanasComTreino = new Set(sessions.map((x) => iso(mondayOf(dayjs(x.date)))));
+    const primeiraSemana = mondayOf(dayjs(inicio));
+    const nSemanas = Math.floor(diffDias(iso(primeiraSemana), iso(mondayOf(new Date()))) / 7) + 1;
+    const serie = [];
+    for (let i = 0; i < nSemanas; i++) {
+      const d = new Date(primeiraSemana); d.setDate(d.getDate() + i * 7);
+      serie.push(semanasComTreino.has(iso(d)));
+    }
+
     /* maior sequência: qualquer corrida de semanas com treino */
     let maiorStreak = 0, run = 0;
-    for (const w of weeks) {
-      run = w.sessoes > 0 ? run + 1 : 0;
+    for (const tem of serie) {
+      run = tem ? run + 1 : 0;
       maiorStreak = Math.max(maiorStreak, run);
     }
     /* sequência atual: conta de trás para frente; a semana corrente,
        se ainda vazia, está em aberto e não quebra a sequência */
     let streak = 0;
-    for (let i = weeks.length - 1; i >= 0; i--) {
-      if (weeks[i].sessoes > 0) streak++;
-      else if (i < weeks.length - 1) break;
+    for (let i = serie.length - 1; i >= 0; i--) {
+      if (serie[i]) streak++;
+      else if (i < serie.length - 1) break;
     }
 
     /* aderência ao plano */
@@ -1052,7 +1102,7 @@ function Analise({ st, cfg, onPlano }) {
         <Metric first label="Densidade de carga" value={dens28 != null ? `${fmt(dens28, 2)} /min` : "—"}
           delta={densDelta != null ? `${densDelta > 0 ? "+" : ""}${fmt(densDelta, 2)} vs. 28 dias anteriores` : null}
           nota="TRIMP por minuto nos últimos 28 dias. Equivale à zona média dos seus treinos: 2,0 é uma rotina de base, acima de 2,8 é uma rotina intensa." />
-        <Metric label="Tempo fácil" value={`${fmt(st.polar)}%`} faixa={escala(st.polar, [60, 75, 101])}
+        <Metric label="Tempo fácil" value={`${fmt(st.polar)}%`} faixa={escalaFacil(st.polar)}
           nota="Proporção do tempo total em Z1 e Z2. A literatura de treino polarizado costuma trabalhar perto de 80%." />
         <Metric label="Reserva cardíaca usada" value={st.pctFCR != null ? `${fmt(st.pctFCR)}%` : "—"}
           nota={`Média de (FC do treino − ${cfg.restHr}) ÷ (${cfg.maxHr} − ${cfg.restHr}) nos últimos 28 dias.`} />
@@ -1140,15 +1190,88 @@ function Analise({ st, cfg, onPlano }) {
   );
 }
 
+/* ================= importação de CSV ================= */
+
+/* parser mínimo, mas com aspas e quebras de linha dentro de campo — o campo
+   "notas" é texto livre digitado pelo usuário e pode conter vírgula e aspas */
+function parseCsv(texto) {
+  const t = texto.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
+  const linhas = [];
+  let campo = "", linha = [], aspas = false;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (aspas) {
+      if (c !== '"') campo += c;
+      else if (t[i + 1] === '"') { campo += '"'; i++; }
+      else aspas = false;
+    } else if (c === '"') aspas = true;
+    else if (c === ",") { linha.push(campo); campo = ""; }
+    else if (c === "\n") { linha.push(campo); linhas.push(linha); linha = []; campo = ""; }
+    else campo += c;
+  }
+  if (campo !== "" || linha.length) { linha.push(campo); linhas.push(linha); }
+  return linhas;
+}
+
+/* identidade de um treino para efeito de deduplicação na reimportação */
+const chaveSessao = (x) => `${x.date}|${ZONES.map((z) => x.zones[z.id] || 0).join("-")}`;
+
+function sessoesDeCsv(texto) {
+  const linhas = parseCsv(texto).filter((l) => l.some((c) => c.trim() !== ""));
+  if (linhas.length < 2) throw new Error("arquivo sem linhas de dados");
+  const cab = linhas[0].map((c) => c.trim().toLowerCase());
+  const col = (nome) => cab.indexOf(nome);
+  if (col("data") < 0) throw new Error("coluna 'data' não encontrada");
+  const num = (v) => {
+    const n = Number(String(v ?? "").trim().replace(",", "."));
+    return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+  };
+  const sessoes = [];
+  let ignoradas = 0;
+  linhas.slice(1).forEach((l, k) => {
+    const date = String(l[col("data")] ?? "").trim();
+    const zones = Object.fromEntries(ZONES.map((z) => [z.id, num(l[col(z.id)])]));
+    const total = totalZ(zones);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(dayjs(date).getTime()) || !total) {
+      ignoradas++;
+      return;
+    }
+    sessoes.push({
+      id: `imp-${Date.now().toString(36)}-${k}`,
+      date, zones, total,
+      avgHr: num(l[col("fc_media")]) || null,
+      maxHr: num(l[col("fc_max")]) || null,
+      rpe: clamp(num(l[col("rpe")]), 0, 10) || null,
+      notes: String(l[col("notas")] ?? "").trim(),
+    });
+  });
+  return { sessoes, ignoradas };
+}
+
 /* ================= tela: histórico ================= */
 
-function Historico({ sessions, onEdit, onDelete, onClearDemo, onReseed, onToast }) {
+function Historico({ sessions, onEdit, onDelete, onClearDemo, onReseed, onImport, onToast }) {
   const [open, setOpen] = useState(null);
+  const arquivo = useRef(null);
+
+  const inputArquivo = (
+    <input ref={arquivo} type="file" accept=".csv,text/csv" style={{ display: "none" }}
+      onChange={(e) => {
+        const f = e.target.files?.[0];
+        e.target.value = "";
+        if (f) onImport(f);
+      }} />
+  );
+
   if (!sessions.length) {
     return (
       <>
         <LargeTitle title="Histórico" /><Empty />
-        <Card><button style={s.secondary} onClick={onReseed}>Carregar dados de exemplo</button></Card>
+        <Card>
+          <button style={s.secondary} onClick={() => arquivo.current?.click()}>Importar CSV</button>
+          <button style={s.secondary} onClick={onReseed}>Carregar dados de exemplo</button>
+          {inputArquivo}
+        </Card>
       </>
     );
   }
@@ -1158,7 +1281,7 @@ function Historico({ sessions, onEdit, onDelete, onClearDemo, onReseed, onToast 
     [...sessions].sort((a, b) => a.date.localeCompare(b.date)).forEach((x) => {
       linhas.push([x.date, x.total, x.zones.z1 || 0, x.zones.z2 || 0, x.zones.z3 || 0, x.zones.z4 || 0,
         x.zones.z5 || 0, trimp(x), x.avgHr || "", x.maxHr || "", x.rpe || "",
-        `"${(x.notes || "").replace(/"/g, "'")}"`].join(","));
+        `"${(x.notes || "").replace(/"/g, '""')}"`].join(","));
     });
     try {
       const blob = new Blob(["\uFEFF" + linhas.join("\n")], { type: "text/csv;charset=utf-8" });
@@ -1238,6 +1361,18 @@ function Historico({ sessions, onEdit, onDelete, onClearDemo, onReseed, onToast 
           </Card>
         </div>
       ))}
+
+      <SectionTitle>Backup</SectionTitle>
+      <Card>
+        <p style={{ ...s.foot, marginTop: 0 }}>
+          Os treinos ficam apenas neste navegador — limpar os dados do site apaga tudo. Exporte de
+          tempos em tempos e guarde o arquivo; ele pode ser importado de volta aqui, inclusive em
+          outro aparelho. Treinos já presentes não são duplicados na importação.
+        </p>
+        <button style={s.secondary} onClick={exportar}>Exportar CSV</button>
+        <button style={s.secondary} onClick={() => arquivo.current?.click()}>Importar CSV</button>
+        {inputArquivo}
+      </Card>
 
       <SectionTitle>Dados de exemplo</SectionTitle>
       <Card>
@@ -2063,6 +2198,10 @@ function escala(v, [a, b, c], invertido = false) {
   if (invertido) return v < a ? "bom" : v < b ? "ok" : v < c ? "atencao" : "alto";
   return v < a ? "baixo" : v < b ? "bom" : v < c ? "atencao" : "alto";
 }
+
+/* tempo fácil não tem faixa superior de risco: quanto maior, melhor.
+   O corte em 75% é o mesmo usado pela leitura em `insights`, para os dois não se contradizerem. */
+const escalaFacil = (v) => (v < 75 ? "atencao" : "bom");
 
 function insights(st) {
   const out = [];
