@@ -38,26 +38,22 @@ do zero artificialmente.
 
 Coberto por regressão em `src/lib/stats.test.js`.
 
-### 1.2 RPE aceita qualquer valor e quebra o gráfico
+### 1.2 FC média e FC máxima aceitam qualquer valor — RPE RESOLVIDO
 
-**Leitura de código.** O formulário sanitiza com `Math.max(0, Number(v) || 0)`
-(`src/App.jsx:844`) e grava sem teto (`:859`). Um 99 digitado por engano é aceito.
+O RPE passou a ser limitado a 0–10 no envio do formulário (`src/App.jsx:868`), quando ele foi
+reescrito para receber minutos e segundos. A importação de CSV já limitava.
 
-O gráfico de dispersão mapeia o eixo vertical como `(v - 1) / 9`, assumindo a faixa 1–10. Com
-99 o ponto vai parar muito fora da área visível, e a reta de regressão é puxada junto — a
-correlação de Pearson exibida ao lado passa a descrever um ponto que ninguém vê.
+**Continua aberto:** FC média e FC máxima seguem sem faixa. Um 1500 digitado por engano destrói
+a escala do gráfico de eficiência cardíaca, que ajusta o eixo pelos valores mínimo e máximo da
+série.
 
-Vale notar que a importação de CSV **já** limita RPE a 0–10; é só o formulário que não limita.
+**Abordagem sugerida.** Mesma checagem do RPE, com faixas plausíveis (algo como 30–250 bpm).
 
-**Abordagem sugerida.** Aplicar `clamp(…, 0, 10)` no envio, como a importação faz, e sinalizar
-no campo. Mesma checagem serve para FC média e FC máxima, hoje igualmente sem faixa — um 1500
-digitado por engano destrói a escala do gráfico de eficiência cardíaca.
-
-**Esforço:** uma hora.
+**Esforço:** meia hora.
 
 ### 1.3 "FC máxima registrada: 0 bpm"
 
-**Leitura de código.** `Math.max(...sessions.map((x) => x.maxHr || 0))` (`src/lib/stats.js:248`)
+**Leitura de código.** `Math.max(...sessions.map((x) => x.maxHr || 0))` (`src/lib/stats.js:255`)
 devolve 0 quando nenhum treino tem FC máxima preenchida — campo opcional. A linha de Recordes
 mostra "0 bpm", que parece defeito.
 
@@ -68,7 +64,7 @@ já é feito com `maiorSemana`.
 
 ### 1.4 Dados do `localStorage` entram sem validação
 
-**Leitura de código.** O que vem do armazenamento é usado direto. Em `src/lib/stats.js:229`,
+**Leitura de código.** O que vem do armazenamento é usado direto. Em `src/lib/stats.js:236`,
 `z3mais` da semana corrente acessa `x.zones.z3 + x.zones.z4 + x.zones.z5` sem proteção: uma
 sessão gravada por uma versão anterior sem alguma dessas chaves produz `NaN`, que se propaga
 silenciosamente por todos os gráficos e totais. (A série semanal, em `:102`, já ganhou guardas
@@ -94,7 +90,7 @@ A lógica pura saiu de `App.jsx` para `src/lib/`: `util.js`, `datas.js`, `treino
 `stats.js` e `csv.js`. O motor de estatística virou `calcularStats(sessions, cfg)`, uma
 função pura sem React — `useStats` agora é só um `useMemo` em cima dela.
 
-87 testes em Vitest (`npm test`), cobrindo datas e fusos, round-trip de CSV com entradas
+120 testes em Vitest (`npm test`), cobrindo datas e fusos, round-trip de CSV com entradas
 malformadas, sequências de semanas e os agregados do item 1.1.
 
 Falta cobrir: o próprio `App.jsx` (componentes e estado), que continua sem teste. Para isso
@@ -110,7 +106,7 @@ sozinho pelo menos um problema real deste código.
 
 **Esforço:** meio dia.
 
-### 2.3 `App.jsx` tem 2.026 linhas
+### 2.3 `App.jsx` tem 2.018 linhas
 
 Depois do item 2.1 saíram as constantes e o motor de estatística. Continuam no arquivo: quatro
 telas, duas folhas modais, os gráficos SVG e a folha de estilos inteira.
@@ -149,7 +145,7 @@ Itens independentes, do mais para o menos grave:
 - **Gráficos sem alternativa textual.** Os SVGs não têm `role="img"` nem `aria-label`. Para
   leitor de tela, a aba Tendências é uma página vazia. Um resumo de uma frase por gráfico já
   mudaria isso.
-- **`aria-current={on}`** (`src/App.jsx:1821`) gera `aria-current="false"` no elemento não
+- **`aria-current={on}`** (`src/App.jsx:1823`) gera `aria-current="false"` no elemento não
   selecionado, o que não é valor válido. Deveria ser `aria-current={on ? "page" : undefined}`.
 - **Campos sem `<label>`.** Os `<input>` dependem de proximidade visual.
 - **`maximum-scale=1`** no viewport (`index.html:5`) sinaliza bloqueio de zoom.
@@ -158,7 +154,7 @@ Itens independentes, do mais para o menos grave:
 
 ### 3.3 Excluir treino não pede confirmação nem tem volta
 
-**Leitura de código.** O botão Excluir (`src/App.jsx:781`) apaga na hora. O toast que aparece
+**Leitura de código.** O botão Excluir (`src/App.jsx:791`) apaga na hora. O toast que aparece
 depois é informativo, não oferece desfazer. Um toque errado numa lista densa apaga um registro
 sem recurso.
 
@@ -234,7 +230,7 @@ para comparar as suas próprias semanas entre si. O app já diz isso na aba Aná
 correto — vale mantê-lo em qualquer reescrita.
 
 Um detalhe técnico que não é defeito, mas convém conhecer: a razão aguda/crônica usa a variante
-*acoplada* (`src/lib/stats.js:235`), em que os 7 dias recentes entram também no denominador de 28
+*acoplada* (`src/lib/stats.js:242`), em que os 7 dias recentes entram também no denominador de 28
 dias. É a formulação original de Gabbett e funciona, mas infla a razão em semanas de pico
 comparada à variante desacoplada. Se algum dia o número parecer conservador demais numa semana
 forte, a causa é essa.

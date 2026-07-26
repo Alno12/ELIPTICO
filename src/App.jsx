@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 
-import { sum, fmt, clamp, cap } from "./lib/util.js";
+import { sum, fmt, clamp, cap, minSeg, deMinSeg, mmss } from "./lib/util.js";
 import { DIAS_CURTO, DIAS_NOME, iso, dayjs, daysAgo, mondayOf, longDate, shortDate } from "./lib/datas.js";
-import { ZONES, trimp, seed, faixa } from "./lib/treino.js";
+import { ZONES, trimp, totalZ, equiv, equivZ, seed, faixa } from "./lib/treino.js";
 import { chaveSessao, sessoesDeCsv } from "./lib/csv.js";
 import { calcularStats, escala, escalaFacil } from "./lib/stats.js";
 
@@ -119,8 +119,8 @@ export default function App() {
     setEditando(null);
   };
 
-  const abrirRegistro = (sessao = null, preset = null) => {
-    setEditando(sessao ? { ...sessao } : preset ? { preset } : null);
+  const abrirRegistro = (sessao = null) => {
+    setEditando(sessao ? { ...sessao } : null);
     setSheet("registrar");
   };
 
@@ -211,7 +211,7 @@ function Resumo({ st, cfg, sessions, onAjustes, onRegistrar }) {
   const [selDia, setSelDia] = useState(null);
   if (!st) return <><LargeTitle title="Semana" /><Empty /></>;
 
-  const pct = Math.min(100, (st.minSemana / st.meta) * 100);
+  const pct = Math.min(100, (st.equivSemana / st.meta) * 100);
   const feitoHoje = st.semanaAtual.find((d) => d.hoje)?.sessoes.length > 0;
   const dia = selDia != null ? st.semanaAtual.find((d) => d.date === selDia) : null;
   const deltaSemana = st.minSemana - st.minSemanaPassada;
@@ -255,7 +255,7 @@ function Resumo({ st, cfg, sessions, onAjustes, onRegistrar }) {
                   <div key={z.id} style={s.detailRow}>
                     <span style={{ ...s.dotSm, background: z.color }} />
                     <span style={{ flex: 1, color: C.sec }}>{z.label}</span>
-                    <span style={s.mono}>{dia.zones[z.id]} min</span>
+                    <span style={s.mono}>{mmss(dia.zones[z.id])} min</span>
                   </div>
                 ))}
               </>
@@ -269,9 +269,9 @@ function Resumo({ st, cfg, sessions, onAjustes, onRegistrar }) {
               <div style={{ ...s.metaBarInner, width: `${pct}%` }} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 7 }}>
-              <span style={s.rowSub}>{fmt(pct)}% da meta de {st.meta} min</span>
+              <span style={s.rowSub}>{fmt(pct)}% da meta de {st.meta} min equivalentes</span>
               <span style={s.rowSub}>
-                {st.minSemana >= st.meta ? "meta atingida" : `faltam ${fmt(st.meta - st.minSemana)} min`}
+                {st.equivSemana >= st.meta ? "meta atingida" : `faltam ${fmt(st.meta - st.equivSemana)}`}
               </span>
             </div>
           </div>
@@ -321,6 +321,8 @@ function Resumo({ st, cfg, sessions, onAjustes, onRegistrar }) {
         <Tile i={3} label="Treinos" value={st.sessoesSemana} unit="sessões" color={C.blue} />
         <Tile i={4} label="Carga" value={fmt(st.cargaSemana)} unit="TRIMP" color={C.orange} />
         <Tile i={5} label="Zona 3+" value={fmt(st.z3Semana)} unit="min" color={C.red} />
+        <Tile i={6} label="Min. equivalentes" value={fmt(st.equivSemana)} unit="min"
+          delta={st.equivSemanaPassada ? st.equivSemana - st.equivSemanaPassada : null} color={C.purple} />
       </div>
 
       <SectionTitle>
@@ -353,7 +355,7 @@ function Resumo({ st, cfg, sessions, onAjustes, onRegistrar }) {
 
       <SectionTitle>Recordes</SectionTitle>
       <Card i={10} pad={0}>
-        <Line first label="Sessão mais longa" value={`${st.recordes.maisLonga.total} min`} sub={longDate(st.recordes.maisLonga.date)} />
+        <Line first label="Sessão mais longa" value={`${fmt(st.recordes.maisLonga.total)} min`} sub={longDate(st.recordes.maisLonga.date)} />
         <Line label="Sessão mais pesada" value={`${fmt(trimp(st.recordes.maisPesada))} TRIMP`} sub={longDate(st.recordes.maisPesada.date)} />
         {st.recordes.maiorSemana && (
           <Line label="Maior semana" value={`${fmt(st.recordes.maiorSemana.minutos)} min`}
@@ -606,6 +608,8 @@ function Analise({ st, cfg }) {
         <Metric first label="Densidade de carga" value={dens28 != null ? `${fmt(dens28, 2)} /min` : "—"}
           delta={densDelta != null ? `${densDelta > 0 ? "+" : ""}${fmt(densDelta, 2)} vs. 28 dias anteriores` : null}
           nota="TRIMP por minuto nos últimos 28 dias. Equivale à zona média dos seus treinos: 2,0 é uma rotina de base, acima de 2,8 é uma rotina intensa." />
+        <Metric label="Minutos equivalentes, 28 dias" value={fmt(st.equiv28)}
+          nota="Zona 1 não conta, Zonas 2 e 3 valem 1× e Zonas 4 e 5 valem 2×. É a equivalência entre atividade moderada e vigorosa por trás da recomendação de 150 min semanais: 1 min vigoroso conta como 2 moderados." />
         <Metric label="Tempo fácil" value={`${fmt(st.polar)}%`} faixa={escalaFacil(st.polar)}
           nota="Proporção do tempo total em Z1 e Z2. A literatura de treino polarizado costuma trabalhar perto de 80%." />
         <Metric label="Reserva cardíaca usada" value={st.pctFCR != null ? `${fmt(st.pctFCR)}%` : "—"}
@@ -703,10 +707,12 @@ function Historico({ sessions, onEdit, onDelete, onClearDemo, onReseed, onImport
   }
 
   const exportar = () => {
-    const linhas = [["data", "total_min", "z1", "z2", "z3", "z4", "z5", "trimp", "fc_media", "fc_max", "rpe", "notas"].join(",")];
+    const linhas = [["data", "total_min", "z1", "z2", "z3", "z4", "z5", "trimp", "min_equivalentes", "fc_media", "fc_max", "rpe", "notas"].join(",")];
+    /* tempos podem ser fracionários; 4 casas bastam para reconstruir o segundo exato */
+    const dec = (v) => Number((Number(v) || 0).toFixed(4)).toString();
     [...sessions].sort((a, b) => a.date.localeCompare(b.date)).forEach((x) => {
-      linhas.push([x.date, x.total, x.zones.z1 || 0, x.zones.z2 || 0, x.zones.z3 || 0, x.zones.z4 || 0,
-        x.zones.z5 || 0, trimp(x), x.avgHr || "", x.maxHr || "", x.rpe || "",
+      linhas.push([x.date, dec(x.total), ...ZONES.map((z) => dec(x.zones[z.id] || 0)),
+        dec(trimp(x)), dec(equiv(x)), x.avgHr || "", x.maxHr || "", x.rpe || "",
         `"${(x.notes || "").replace(/"/g, '""')}"`].join(","));
     });
     try {
@@ -743,7 +749,7 @@ function Historico({ sessions, onEdit, onDelete, onClearDemo, onReseed, onImport
                   <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
                       <span style={s.rowLabel}>{shortDate(x.date)}</span>
-                      <span style={{ ...s.mono, fontSize: 13 }}>{x.total} min</span>
+                      <span style={{ ...s.mono, fontSize: 13 }}>{fmt(x.total)} min</span>
                     </div>
                     <div style={s.rowSub}>
                       {fmt(trimp(x))} TRIMP{x.avgHr ? ` · ${x.avgHr} bpm médios` : ""}{x.rpe ? ` · RPE ${x.rpe}` : ""}
@@ -762,7 +768,7 @@ function Historico({ sessions, onEdit, onDelete, onClearDemo, onReseed, onImport
                       <div key={z.id} style={s.detailRow}>
                         <span style={{ ...s.dotSm, background: z.color }} />
                         <span style={{ flex: 1, color: C.sec }}>{z.label}</span>
-                        <span style={s.mono}>{x.zones[z.id] || 0} min</span>
+                        <span style={s.mono}>{mmss(x.zones[z.id] || 0)} min</span>
                       </div>
                     ))}
                     {x.maxHr && (
@@ -771,6 +777,10 @@ function Historico({ sessions, onEdit, onDelete, onClearDemo, onReseed, onImport
                         <span style={s.mono}>{x.maxHr} bpm</span>
                       </div>
                     )}
+                    <div style={s.detailRow}>
+                      <span style={{ flex: 1, color: C.sec }}>Minutos equivalentes</span>
+                      <span style={s.mono}>{fmt(equiv(x))}</span>
+                    </div>
                     <div style={s.detailRow}>
                       <span style={{ flex: 1, color: C.sec }}>Densidade</span>
                       <span style={s.mono}>{fmt(trimp(x) / x.total, 2)} /min</span>
@@ -818,19 +828,15 @@ function Historico({ sessions, onEdit, onDelete, onClearDemo, onReseed, onImport
 /* ================= folhas modais ================= */
 
 function RegistrarSheet({ cfg, inicial, onSave, onClose }) {
-  const base = { date: iso(new Date()), z1: "", z2: "", z3: "", z4: "", z5: "", avgHr: "", maxHr: "", rpe: "", notes: "" };
+  const vazio = { date: iso(new Date()), avgHr: "", maxHr: "", rpe: "", notes: "" };
   const partida = (() => {
-    if (!inicial) return base;
-    if (inicial.preset) {
-      const z = inicial.preset.z;
-      return {
-        ...base, date: inicial.preset.date || base.date,
-        ...Object.fromEntries(ZONES.map((k) => [k.id, z[k.id] ? String(z[k.id]) : ""])),
-      };
-    }
+    if (!inicial) return { ...vazio, ...Object.fromEntries(ZONES.flatMap((k) => [[`${k.id}m`, ""], [`${k.id}s`, ""]])) };
     return {
       date: inicial.date,
-      ...Object.fromEntries(ZONES.map((k) => [k.id, inicial.zones[k.id] ? String(inicial.zones[k.id]) : ""])),
+      ...Object.fromEntries(ZONES.flatMap((k) => {
+        const { m, s: seg } = minSeg(inicial.zones[k.id]);
+        return [[`${k.id}m`, m ? String(m) : ""], [`${k.id}s`, seg ? String(seg) : ""]];
+      })),
       avgHr: inicial.avgHr ? String(inicial.avgHr) : "",
       maxHr: inicial.maxHr ? String(inicial.maxHr) : "",
       rpe: inicial.rpe ? String(inicial.rpe) : "",
@@ -840,23 +846,26 @@ function RegistrarSheet({ cfg, inicial, onSave, onClose }) {
 
   const [f, setF] = useState(partida);
   const [err, setErr] = useState(null);
-  const editando = inicial && !inicial.preset;
+  const editando = !!inicial;
   const n = (v) => (v === "" ? 0 : Math.max(0, Number(v) || 0));
-  const total = ZONES.reduce((a, z) => a + n(f[z.id]), 0);
-  const carga = ZONES.reduce((a, z) => a + n(f[z.id]) * z.w, 0);
+  const minutosDa = (z) => deMinSeg(f[`${z.id}m`], f[`${z.id}s`]);
+  const zonas = Object.fromEntries(ZONES.map((z) => [z.id, minutosDa(z)]));
+  const total = totalZ(zonas);
+  const carga = ZONES.reduce((a, z) => a + zonas[z.id] * z.w, 0);
+  const equivalentes = equivZ(zonas);
 
-  const aplicar = (z) => setF({ ...f, ...Object.fromEntries(ZONES.map((k) => [k.id, z[k.id] ? String(z[k.id]) : ""])) });
+  const campo = (chave, valor) => { setErr(null); setF({ ...f, [chave]: valor }); };
 
   const submit = () => {
-    if (total === 0) { setErr("Informe os minutos em pelo menos uma zona."); return; }
+    if (total === 0) { setErr("Informe o tempo em pelo menos uma zona."); return; }
     onSave({
       id: editando ? inicial.id : `s-${Date.now()}`,
       date: f.date,
-      zones: Object.fromEntries(ZONES.map((z) => [z.id, n(f[z.id])])),
+      zones: zonas,
       total,
       avgHr: n(f.avgHr) || null,
       maxHr: n(f.maxHr) || null,
-      rpe: n(f.rpe) || null,
+      rpe: clamp(n(f.rpe), 0, 10) || null,
       notes: f.notes.trim(),
     });
   };
@@ -872,45 +881,38 @@ function RegistrarSheet({ cfg, inicial, onSave, onClose }) {
         </div>
       </Card>
 
-      <SectionTitle>Modelos rápidos</SectionTitle>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-        {[
-          { l: "Z2 · 30 min", z: { z1: 8, z2: 22 } },
-          { l: "Z2 · 40 min", z: { z1: 8, z2: 32 } },
-          { l: "4×4", z: { z1: 18, z4: 16 } },
-          { l: "5×2", z: { z1: 21, z4: 10 } },
-          { l: "Limpar", z: {} },
-        ].map((p) => (
-          <button key={p.l} style={s.preset} onClick={() => aplicar(p.z)}>{p.l}</button>
-        ))}
-      </div>
-
-      <SectionTitle>Minutos por zona</SectionTitle>
+      <SectionTitle>Tempo por zona</SectionTitle>
       <Card>
-        {ZONES.map((z, i) => {
-          const v = n(f[z.id]);
-          return (
-            <div key={z.id} style={{ ...s.zoneRow, borderTop: i ? `0.5px solid ${C.sep}` : "none" }}>
-              <span style={{ ...s.zoneBadge, background: z.color }}>{z.short}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={s.rowLabel}>{z.name}</div>
-                <div style={s.rowSub}>{faixa(cfg, i)} bpm</div>
-                <div style={s.trackOuter}>
-                  <div style={{ ...s.trackInner, width: total ? `${(v / total) * 100}%` : "0%", background: z.color }} />
-                </div>
+        {ZONES.map((z, i) => (
+          <div key={z.id} style={{ ...s.zoneRow, borderTop: i ? `0.5px solid ${C.sep}` : "none" }}>
+            <span style={{ ...s.zoneBadge, background: z.color }}>{z.short}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={s.rowLabel}>{z.name}</div>
+              <div style={s.rowSub}>{faixa(cfg, i)} bpm</div>
+              <div style={s.trackOuter}>
+                <div style={{ ...s.trackInner, width: total ? `${(zonas[z.id] / total) * 100}%` : "0%", background: z.color }} />
               </div>
-              <input style={s.zoneInput} type="number" min="0" inputMode="numeric" placeholder="0"
-                value={f[z.id]} onChange={(e) => { setErr(null); setF({ ...f, [z.id]: e.target.value }); }} />
             </div>
-          );
-        })}
+            <div style={s.tempoCampo}>
+              <input style={s.tempoInput} type="number" min="0" inputMode="numeric" placeholder="0"
+                aria-label={`${z.label}, minutos`}
+                value={f[`${z.id}m`]} onChange={(e) => campo(`${z.id}m`, e.target.value)} />
+              <span style={s.tempoSep}>min</span>
+              <input style={s.tempoInput} type="number" min="0" max="59" inputMode="numeric" placeholder="00"
+                aria-label={`${z.label}, segundos`}
+                value={f[`${z.id}s`]} onChange={(e) => campo(`${z.id}s`, e.target.value)} />
+              <span style={s.tempoSep}>s</span>
+            </div>
+          </div>
+        ))}
         <div style={s.totalBar}>
           <div>
             <div style={s.rowLabel}>Duração total</div>
-            <div style={s.rowSub}>Carga estimada {fmt(carga)} TRIMP</div>
+            <div style={s.rowSub}>{fmt(carga)} TRIMP · {fmt(equivalentes)} min equivalentes</div>
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-            <span style={{ ...s.big, fontSize: 32 }}>{total}</span><span style={s.unit}>min</span>
+            <span style={{ ...s.big, fontSize: 32 }}>{mmss(total)}</span>
+            <span style={s.unit}>min</span>
           </div>
         </div>
       </Card>
@@ -943,7 +945,7 @@ function Ajustes({ cfg, onChange, onClose }) {
         <FieldNum first label="FC máxima" unit="bpm" value={cfg.maxHr} onChange={(v) => set("maxHr", v)} />
         <FieldNum label="FC de repouso" unit="bpm" value={cfg.restHr} onChange={(v) => set("restHr", v)} />
         <FieldNum label="VO₂ máx" unit="ml/kg/min" value={cfg.vo2max} onChange={(v) => onChange({ ...cfg, vo2max: Number(v) || 0 })} />
-        <FieldNum label="Meta semanal" unit="min" value={cfg.weeklyGoal} onChange={(v) => set("weeklyGoal", v)} />
+        <FieldNum label="Meta semanal" unit="min equiv." value={cfg.weeklyGoal} onChange={(v) => set("weeklyGoal", v)} />
       </Card>
 
       <SectionTitle>Cálculo das zonas</SectionTitle>
@@ -1015,7 +1017,7 @@ function WeekStrip({ dias, sel, setSel }) {
               )}
             </div>
             <span style={{ ...s.diaMin, color: d.total ? C.label : C.ter }}>
-              {d.total || "—"}
+              {d.total ? fmt(d.total) : "—"}
             </span>
           </button>
         );
@@ -1591,11 +1593,11 @@ function insights(st) {
     });
   }
 
-  const m = st.semana.minutos;
+  const eq = st.semana.equiv;
   out.push({
-    tag: fmt(m), icon: ICONS.meta, c: m >= 150 ? C.green : C.orange,
-    t: m >= 150 ? "Acima da recomendação semanal" : "Abaixo da recomendação semanal",
-    d: `A referência da OMS para adultos é de 150 a 300 min semanais de atividade aeróbica moderada. Você somou ${fmt(m)} min em ${st.semana.sessoes} ${st.semana.sessoes === 1 ? "treino" : "treinos"} nos últimos 7 dias.`,
+    tag: fmt(eq), icon: ICONS.meta, c: eq >= 150 ? C.green : C.orange,
+    t: eq >= 150 ? "Acima da recomendação semanal" : "Abaixo da recomendação semanal",
+    d: `A referência para adultos é de 150 a 300 min semanais de atividade aeróbica moderada, com 1 min vigoroso valendo 2. Você somou ${fmt(eq)} min equivalentes — de ${fmt(st.semana.minutos)} min de treino — em ${st.semana.sessoes} ${st.semana.sessoes === 1 ? "treino" : "treinos"} nos últimos 7 dias.`,
   });
 
   return out;
@@ -1945,17 +1947,17 @@ const s = {
   metricValue: { fontSize: 16, fontWeight: 600, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.3px", flexShrink: 0 },
   faixaTag: { fontSize: 11, fontWeight: 600, padding: "3px 7px", borderRadius: 6, flexShrink: 0 },
   metricNota: { fontSize: 12.5, color: C.sec, lineHeight: 1.5, margin: 0, padding: "0 16px 14px", animation: "fade .2s ease" },
-  preset: {
-    fontSize: 13, fontWeight: 500, background: C.card, padding: "9px 13px", borderRadius: 11,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-  },
   zoneRow: { display: "flex", alignItems: "center", gap: 11, padding: "11px 0" },
   trackOuter: { height: 3, borderRadius: 2, background: C.fill, marginTop: 7, overflow: "hidden" },
   trackInner: { height: "100%", borderRadius: 2, transition: "width .35s cubic-bezier(.16,.84,.28,1)" },
-  zoneInput: {
-    width: 64, background: C.fill, border: "none", borderRadius: 10, padding: "10px 8px",
+  /* gap maior que o outline-offset do foco (2px + 2.5px de traço), senão o
+     anel de foco de um campo cobre o rótulo do campo vizinho */
+  tempoCampo: { display: "flex", alignItems: "center", gap: 6, flexShrink: 0 },
+  tempoInput: {
+    width: 46, background: C.fill, border: "none", borderRadius: 9, padding: "10px 4px",
     fontSize: 17, textAlign: "center", fontVariantNumeric: "tabular-nums", fontWeight: 600,
   },
+  tempoSep: { fontSize: 11.5, color: C.sec, fontWeight: 500 },
   totalBar: {
     display: "flex", justifyContent: "space-between", alignItems: "center",
     marginTop: 14, paddingTop: 14, borderTop: `0.5px solid ${C.sep}`,

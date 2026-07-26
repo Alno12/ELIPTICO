@@ -15,6 +15,13 @@ const trimp = (s) => ZONES.reduce((a, z) => a + (s.zones[z.id] || 0) * z.w, 0);
 const totalZ = (z) => ZONES.reduce((a, k) => a + (z[k.id] || 0), 0);
 const cargaZ = (z) => ZONES.reduce((a, k) => a + (z[k.id] || 0) * k.w, 0);
 
+/* Minutos equivalentes: Z1 não conta, Z2 e Z3 valem 1×, Z4 e Z5 valem 2×.
+   É a equivalência entre atividade moderada e vigorosa que sustenta a
+   recomendação de 150 min semanais — 1 min vigoroso conta como 2 moderados. */
+const PESO_EQUIV = { z1: 0, z2: 1, z3: 1, z4: 2, z5: 2 };
+const equivZ = (z) => ZONES.reduce((a, k) => a + (z[k.id] || 0) * PESO_EQUIV[k.id], 0);
+const equiv = (s) => equivZ(s.zones);
+
 /* ================= dados de demonstração ================= */
 
 function seed() {
@@ -71,4 +78,4 @@ function faixa(cfg, i) {
   return `${calc(pc[0])}–${calc(pc[1])}`;
 }
 
-export { ZONES, trimp, totalZ, seed, faixa };
+export { ZONES, PESO_EQUIV, trimp, totalZ, equiv, equivZ, seed, faixa };

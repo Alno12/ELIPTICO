@@ -34,4 +34,16 @@ function mulberry32(a) {
   };
 }
 
-export { sum, fmt, clamp, cap, desvio, pearson, mulberry32 };
+/* O app guarda tempo de zona em minutos decimais; o usuário digita minutos e segundos.
+   Estas três funções são a única ponte entre as duas representações. */
+const minSeg = (minutos) => {
+  const seg = Math.max(0, Math.round((Number(minutos) || 0) * 60));
+  return { m: Math.floor(seg / 60), s: seg % 60 };
+};
+const deMinSeg = (m, s) => Math.max(0, Number(m) || 0) + Math.max(0, Number(s) || 0) / 60;
+const mmss = (minutos) => {
+  const { m, s } = minSeg(minutos);
+  return `${m}:${String(s).padStart(2, "0")}`;
+};
+
+export { sum, fmt, clamp, cap, desvio, pearson, mulberry32, minSeg, deMinSeg, mmss };

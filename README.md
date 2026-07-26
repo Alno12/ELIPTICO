@@ -1,7 +1,11 @@
 # Zonas · Elíptico
 
 App de registro de treinos aeróbicos por zona de frequência cardíaca, com análise de carga
-(TRIMP, ACWR, monotonia, modelo de aptidão/fadiga) e tendências.
+(TRIMP, minutos equivalentes, ACWR, monotonia, modelo de aptidão/fadiga) e tendências.
+
+Os tempos de zona são registrados em minutos e segundos. A meta semanal conta **minutos
+equivalentes**: Zona 1 não conta, Zonas 2 e 3 valem 1× e Zonas 4 e 5 valem 2× — a mesma
+equivalência entre atividade moderada e vigorosa da recomendação de 150 min semanais.
 
 Melhorias mapeadas e ainda não implementadas estão em [MELHORIAS.md](MELHORIAS.md).
 
