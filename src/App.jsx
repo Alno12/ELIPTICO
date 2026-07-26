@@ -238,13 +238,26 @@ const rotuloSemana = (sem) => {
 function Resumo({ st, cfg, sessions, onAjustes }) {
   const [selDia, setSelDia] = useState(null);
   const [offset, setOffset] = useState(0);
+  const [dir, setDir] = useState(-1);
   const iniDeslize = useRef(null);
   if (!st) return <><LargeTitle title="Semana" /><Empty /></>;
 
   /* até onde dá para voltar: a semana do primeiro treino registrado */
   const maxOffset = Math.max(0, Math.floor(diffDias(iso(mondayOf(dayjs(st.primeiro))), iso(mondayOf(new Date()))) / 7));
-  const irPara = (n) => { setOffset(clamp(n, 0, maxOffset)); setSelDia(null); };
+  const irPara = (n) => {
+    const alvo = clamp(n, 0, maxOffset);
+    if (alvo === offset) return;
+    /* ir para o passado traz conteúdo que estava à esquerda, e vice-versa */
+    setDir(alvo > offset ? -1 : 1);
+    setOffset(alvo);
+    setSelDia(null);
+  };
   const arrastar = deslize(iniDeslize, () => irPara(offset + 1), () => irPara(offset - 1));
+  /* `key={offset}` remonta o bloco a cada semana, o que faz a animação tocar de novo */
+  const transicao = (extra) => ({
+    key: offset,
+    style: { ...extra, animation: `${dir < 0 ? "deEsquerda" : "deDireita"} .3s cubic-bezier(.16,.84,.28,1) both` },
+  });
 
   const sem = montarSemana(sessions, offset);
   const ant = montarSemana(sessions, offset + 1);
@@ -260,6 +273,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
       {/* herói: os sete dias da semana em exibição */}
       <Card i={0} pad={18}>
         <div {...arrastar}>
+          <div {...transicao()}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
             <div style={{ minWidth: 0 }}>
               <div style={s.eyebrow}>
@@ -319,6 +333,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
             </div>
           )}
 
+          </div>
           {maxOffset > 0 && (
             <div style={s.dicaDeslize}>
               {offset < maxOffset ? "← arraste para ver semanas anteriores" : "início do histórico"}
@@ -330,7 +345,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
       <SectionTitle>
         {offset === 0 ? "Esta semana" : rotuloSemana(sem)}
       </SectionTitle>
-      <div style={s.grid}>
+      <div {...transicao(s.grid)}>
         <Tile i={2} label="Minutos" value={fmt(sem.minutos)} unit="min"
           delta={sem.minutos - ant.minutos} color={C.green} />
         <Tile i={3} label="Treinos" value={sem.sessoes} unit="sessões"
@@ -381,11 +396,13 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
       </SectionTitle>
       <Card i={12}>
         <div {...arrastar}>
+          <div {...transicao()}>
           {sem.grand > 0
             ? <ZoneColumn totals={sem.zonas} grand={sem.grand} cfg={cfg} />
             : <p style={{ ...s.foot, margin: 0, textAlign: "center", padding: 20 }}>
                 Nenhum treino nesta semana.
               </p>}
+          </div>
         </div>
       </Card>
 
@@ -1670,6 +1687,8 @@ function Shell({ children, scroller, onScroll, compact, titulo }) {
         @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
         @keyframes fade{from{opacity:0}to{opacity:1}}
         @keyframes sheetIn{from{transform:translateY(100%)}to{transform:none}}
+        @keyframes deEsquerda{from{opacity:0;transform:translateX(-26px)}to{opacity:1;transform:none}}
+        @keyframes deDireita{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
         .card{animation:rise .5s cubic-bezier(.16,.84,.28,1) both}
         @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
       `}</style>
