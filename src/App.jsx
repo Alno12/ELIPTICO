@@ -328,6 +328,22 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
       </Card>
 
       <SectionTitle>
+        Distribuição por zona na semana
+        <span style={s.sectionRight}>{offset === 0 ? "esta semana" : rotuloSemana(sem)}</span>
+      </SectionTitle>
+      <Card i={1}>
+        <div>
+          <div {...transicao()}>
+          {sem.grand > 0
+            ? <ZoneColumn totals={sem.zonas} grand={sem.grand} cfg={cfg} />
+            : <p style={{ ...s.foot, margin: 0, textAlign: "center", padding: 20 }}>
+                Nenhum treino nesta semana.
+              </p>}
+          </div>
+        </div>
+      </Card>
+
+      <SectionTitle>
         {offset === 0 ? "Esta semana" : rotuloSemana(sem)}
       </SectionTitle>
       <div {...transicao(s.grid)}>
@@ -374,22 +390,6 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
           delta={st.mesAnterior ? st.mesAtual.equiv - st.mesAnterior.equiv : null}
           comparado="mês anterior" color={C.purple} />
       </div>
-
-      <SectionTitle>
-        Distribuição por zona na semana
-        <span style={s.sectionRight}>{offset === 0 ? "esta semana" : rotuloSemana(sem)}</span>
-      </SectionTitle>
-      <Card i={12}>
-        <div>
-          <div {...transicao()}>
-          {sem.grand > 0
-            ? <ZoneColumn totals={sem.zonas} grand={sem.grand} cfg={cfg} />
-            : <p style={{ ...s.foot, margin: 0, textAlign: "center", padding: 20 }}>
-                Nenhum treino nesta semana.
-              </p>}
-          </div>
-        </div>
-      </Card>
 
       <SectionTitle>Recordes</SectionTitle>
       <Card i={13} pad={0}>
