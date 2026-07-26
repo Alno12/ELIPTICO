@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 
 import { sum, fmt, clamp, cap } from "./lib/util.js";
-import { DIAS_CURTO, DIAS_NOME, iso, dayjs, daysAgo, diffDias, mondayOf, longDate, shortDate } from "./lib/datas.js";
-import { ZONES, trimp, totalZ, seed, faixa } from "./lib/treino.js";
+import { DIAS_CURTO, DIAS_NOME, iso, dayjs, daysAgo, mondayOf, longDate, shortDate } from "./lib/datas.js";
+import { ZONES, trimp, seed, faixa } from "./lib/treino.js";
 import { chaveSessao, sessoesDeCsv } from "./lib/csv.js";
 import { calcularStats, escala, escalaFacil } from "./lib/stats.js";
 
@@ -1945,19 +1945,9 @@ const s = {
   metricValue: { fontSize: 16, fontWeight: 600, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.3px", flexShrink: 0 },
   faixaTag: { fontSize: 11, fontWeight: 600, padding: "3px 7px", borderRadius: 6, flexShrink: 0 },
   metricNota: { fontSize: 12.5, color: C.sec, lineHeight: 1.5, margin: 0, padding: "0 16px 14px", animation: "fade .2s ease" },
-  miniTag: { fontSize: 10.5, fontWeight: 600, padding: "3px 7px", borderRadius: 6 },
-  chipBtn: {
-    fontSize: 13, fontWeight: 600, color: C.blue, background: "rgba(0,122,255,0.1)",
-    padding: "6px 12px", borderRadius: 9, flexShrink: 0,
-  },
   preset: {
     fontSize: 13, fontWeight: 500, background: C.card, padding: "9px 13px", borderRadius: 11,
     boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-  },
-  toggle: { width: 41, height: 25, borderRadius: 999, padding: 2, display: "flex", transition: "background .25s", flexShrink: 0 },
-  toggleKnob: {
-    width: 21, height: 21, borderRadius: 999, background: "#fff",
-    boxShadow: "0 2px 5px rgba(0,0,0,0.2)", transition: "transform .25s cubic-bezier(.16,.84,.28,1)",
   },
   zoneRow: { display: "flex", alignItems: "center", gap: 11, padding: "11px 0" },
   trackOuter: { height: 3, borderRadius: 2, background: C.fill, marginTop: 7, overflow: "hidden" },
