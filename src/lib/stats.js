@@ -237,6 +237,7 @@ export function calcularStats(sessions, cfg) {
       horas: sum(sessions, (x) => x.total) / 60,
       cargaTotal: sum(sessions, trimp),
       primeiro: inicio,
+      minutosTotal: sum(sessions, (x) => x.total),
       equivTotal: sum(sessions, equiv),
       equiv28: sum(d28, equiv),
       semana: {

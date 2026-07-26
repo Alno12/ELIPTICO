@@ -408,6 +408,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
         <Line first label="Treinos registrados" value={`${st.total}`} />
         <Line label="Tempo total" value={`${fmt(st.horas, 1)} h`} />
         <Line label="Carga acumulada" value={`${fmt(st.cargaTotal)} TRIMP`} />
+        <Line label="Minutos" value={`${fmt(st.minutosTotal)} min`} />
         <Line label="Minutos equivalentes" value={`${fmt(st.equivTotal)} min`} />
         <Line label="Duração média" value={`${fmt(st.mediaDur)} min`} />
         <Line label="Contínuos e intervalados" value={`${st.continuos} · ${st.intervalados}`} />
