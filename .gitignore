@@ -18,3 +18,7 @@ yarn-error.log*
 .DS_Store
 .vscode/
 .idea/
+
+# screenshots de verificação, gerados fora do build
+*.png
+!public/*.png

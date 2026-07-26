@@ -1,6 +1,6 @@
 import { sum, desvio, pearson } from "./util.js";
 import { iso, dayjs, daysAgo, diffDias, mondayOf, DIAS_CURTO } from "./datas.js";
-import { ZONES, trimp } from "./treino.js";
+import { ZONES, trimp, equiv, equivZ } from "./treino.js";
 
 /* Núcleo de estatísticas. Puro: entra (sessions, cfg), sai o objeto de métricas.
    Sem React, para poder ser testado sem montar componente. */
@@ -35,13 +35,14 @@ export function calcularStats(sessions, cfg) {
         total: sum(ses, (x) => x.total),
         carga: sum(ses, trimp),
         zones: Object.fromEntries(ZONES.map((z) => [z.id, sum(ses, (x) => x.zones[z.id] || 0)])),
+        equiv: sum(ses, equiv),
       });
     }
     const semanaPassada = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(seg); d.setDate(d.getDate() - 7 + i);
       const ses = sessions.filter((x) => x.date === iso(d));
-      semanaPassada.push({ total: sum(ses, (x) => x.total) });
+      semanaPassada.push({ total: sum(ses, (x) => x.total), equiv: sum(ses, equiv) });
     }
 
     /* carga diária contínua */
@@ -212,6 +213,8 @@ export function calcularStats(sessions, cfg) {
 
     const durs = sessions.map((x) => x.total);
     const minSemana = sum(semanaAtual, (d) => d.total);
+    /* minutos equivalentes: base da meta semanal (Z1 não conta, Z4 e Z5 valem o dobro) */
+    const equivSemana = sum(semanaAtual, (d) => equivZ(d.zones));
 
     return {
       total: sessions.length,
@@ -219,13 +222,17 @@ export function calcularStats(sessions, cfg) {
       cargaTotal: sum(sessions, trimp),
       primeiro: inicio,
       semanaAtual, semanaPassada,
-      minSemana,
+      minSemana, equivSemana,
+      equivSemanaPassada: sum(semanaPassada, (d) => d.equiv),
+      equivTotal: sum(sessions, equiv),
+      equiv28: sum(d28, equiv),
       cargaSemana: sum(semanaAtual, (d) => d.carga),
       sessoesSemana: sum(semanaAtual, (d) => d.sessoes.length),
       z3Semana: sum(semanaAtual, (d) => d.zones.z3 + d.zones.z4 + d.zones.z5),
       minSemanaPassada: sum(semanaPassada, (d) => d.total),
       semana: {
         minutos: sum(w0, (x) => x.total), sessoes: w0.length, carga: load0,
+        equiv: sum(w0, equiv),
         z3mais: sum(w0, (x) => x.zones.z3 + x.zones.z4 + x.zones.z5),
       },
       delta: {

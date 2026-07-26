@@ -22,7 +22,7 @@ function parseCsv(texto) {
 }
 
 /* identidade de um treino para efeito de deduplicação na reimportação */
-const chaveSessao = (x) => `${x.date}|${ZONES.map((z) => x.zones[z.id] || 0).join("-")}`;
+const chaveSessao = (x) => `${x.date}|${ZONES.map((z) => Math.round((x.zones[z.id] || 0) * 60)).join("-")}`;
 
 function sessoesDeCsv(texto) {
   const linhas = parseCsv(texto).filter((l) => l.some((c) => c.trim() !== ""));
@@ -30,15 +30,21 @@ function sessoesDeCsv(texto) {
   const cab = linhas[0].map((c) => c.trim().toLowerCase());
   const col = (nome) => cab.indexOf(nome);
   if (col("data") < 0) throw new Error("coluna 'data' não encontrada");
+  /* bpm e RPE são inteiros; tempo de zona é decimal e não pode ser arredondado,
+     senão os segundos se perdem na volta */
   const num = (v) => {
     const n = Number(String(v ?? "").trim().replace(",", "."));
     return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+  };
+  const dec = (v) => {
+    const n = Number(String(v ?? "").trim().replace(",", "."));
+    return Number.isFinite(n) && n > 0 ? n : 0;
   };
   const sessoes = [];
   let ignoradas = 0;
   linhas.slice(1).forEach((l, k) => {
     const date = String(l[col("data")] ?? "").trim();
-    const zones = Object.fromEntries(ZONES.map((z) => [z.id, num(l[col(z.id)])]));
+    const zones = Object.fromEntries(ZONES.map((z) => [z.id, dec(l[col(z.id)])]));
     const total = totalZ(zones);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(dayjs(date).getTime()) || !total) {
       ignoradas++;

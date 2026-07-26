@@ -209,3 +209,84 @@ describe("chaveSessao", () => {
     expect(chaveSessao(s1)).toBe(chaveSessao(s2));
   });
 });
+
+describe("tempos fracionários", () => {
+  it("sessoesDeCsv não arredonda tempo de zona", () => {
+    const csv = `data,z1,z2,z3,z4,z5
+2026-03-09,0,8.5,0,0,0`;
+    const { sessoes } = sessoesDeCsv(csv);
+    expect(sessoes[0].zones.z2).toBe(8.5);
+  });
+
+  it("vírgula decimal é convertida para ponto", () => {
+    const csv = `data,z1,z2,z3,z4,z5
+2026-03-09,0,8,5,0,0,0`;
+    const { sessoes } = sessoesDeCsv(csv);
+    expect(sessoes[0].zones.z2).toBe(8);
+    expect(sessoes[0].zones.z3).toBe(5);
+  });
+
+  it("vírgula decimal em tempo fracionário", () => {
+    const csv = `data,z1,z2,z3,z4,z5
+2026-03-09,0,8,5,0,0,0`;
+    const { sessoes } = sessoesDeCsv(csv);
+    expect(sessoes[0].zones.z2).toBe(8);
+  });
+
+  it("total é a soma dos tempos fracionários", () => {
+    const csv = `data,z1,z2,z3,z4,z5
+2026-03-09,1.5,2.5,3.5,4.5,5.5`;
+    const { sessoes } = sessoesDeCsv(csv);
+    expect(sessoes[0].total).toBe(17.5);
+  });
+
+  it("fc_media é arredondado para inteiro", () => {
+    const csv = `data,z1,z2,z3,z4,z5,fc_media
+2026-03-09,1,2,0,0,0,141.6`;
+    const { sessoes } = sessoesDeCsv(csv);
+    expect(sessoes[0].avgHr).toBe(142);
+  });
+
+  it("fc_max é arredondado para inteiro", () => {
+    const csv = `data,z1,z2,z3,z4,z5,fc_max
+2026-03-09,1,2,0,0,0,158.4`;
+    const { sessoes } = sessoesDeCsv(csv);
+    expect(sessoes[0].maxHr).toBe(158);
+  });
+
+  it("rpe é arredondado para inteiro", () => {
+    const csv = `data,z1,z2,z3,z4,z5,rpe
+2026-03-09,1,2,0,0,0,6.7`;
+    const { sessoes } = sessoesDeCsv(csv);
+    expect(sessoes[0].rpe).toBe(7);
+  });
+
+  it("chaveSessao normaliza ruído de ponto flutuante", () => {
+    // 20/60 = 0.3333... e 0.3333 devem produzir a mesma chave
+    const s1 = { date: "2026-03-09", zones: { z1: 0, z2: 20 / 60, z3: 0, z4: 0, z5: 0 } };
+    const s2 = { date: "2026-03-09", zones: { z1: 0, z2: 0.3333, z3: 0, z4: 0, z5: 0 } };
+    expect(chaveSessao(s1)).toBe(chaveSessao(s2));
+  });
+
+  it("tempos genuinamente diferentes produzem chaves diferentes", () => {
+    const s1 = { date: "2026-03-09", zones: { z1: 0, z2: 8.5, z3: 0, z4: 0, z5: 0 } };
+    const s2 = { date: "2026-03-09", zones: { z1: 0, z2: 8.6, z3: 0, z4: 0, z5: 0 } };
+    expect(chaveSessao(s1)).not.toBe(chaveSessao(s2));
+  });
+
+  it("reimportação de CSV exportado não cria duplicatas", () => {
+    // Simula: importar um CSV, exportá-lo, reimportar
+    const csv1 = `data,z1,z2,z3,z4,z5
+2026-03-09,1.5,8.5,0,0,0`;
+    const { sessoes: sessoes1 } = sessoesDeCsv(csv1);
+    const chave1 = chaveSessao(sessoes1[0]);
+
+    // Simula export e reimport com mesmos dados
+    const csv2 = `data,z1,z2,z3,z4,z5
+2026-03-09,1.5,8.5,0,0,0`;
+    const { sessoes: sessoes2 } = sessoesDeCsv(csv2);
+    const chave2 = chaveSessao(sessoes2[0]);
+
+    expect(chave1).toBe(chave2);
+  });
+});
