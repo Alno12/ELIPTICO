@@ -1,5 +1,5 @@
 import { clamp, mulberry32 } from "./util.js";
-import { iso, dayjs, daysAgo, diffDias, mondayOf } from "./datas.js";
+import { iso, daysAgo } from "./datas.js";
 
 /* ================= zonas ================= */
 
@@ -14,81 +14,6 @@ const ZONES = [
 const trimp = (s) => ZONES.reduce((a, z) => a + (s.zones[z.id] || 0) * z.w, 0);
 const totalZ = (z) => ZONES.reduce((a, k) => a + (z[k.id] || 0), 0);
 const cargaZ = (z) => ZONES.reduce((a, k) => a + (z[k.id] || 0) * k.w, 0);
-
-/* ================= plano de 10 semanas ================= */
-
-const PLANO = [
-  {
-    de: 1, ate: 2, nome: "Adaptação",
-    resumo: "Introduzir a Zona 4 em blocos curtos, sem buscar ainda o 4×4 completo.",
-    treinos: [
-      { dia: 1, id: "A", nome: "Contínuo Z2", z: { z1: 8, z2: 22 }, desc: "5 min aquecendo em Z1, 22 min contínuos em Z2, 3 min desacelerando." },
-      { dia: 3, id: "B", nome: "Intervalado 5×2", z: { z1: 21, z4: 10 }, desc: "5 min aquecendo, depois 5 blocos de 2 min em Z4 com 3 min fáceis entre eles, 4 min desacelerando." },
-      { dia: 5, id: "C", nome: "Contínuo Z2", z: { z1: 8, z2: 22 }, desc: "5 min aquecendo em Z1, 22 min contínuos em Z2, 3 min desacelerando." },
-    ],
-  },
-  {
-    de: 3, ate: 4, nome: "Blocos de 3 minutos",
-    resumo: "Blocos mais longos em Z4, com o mesmo número de repetições.",
-    treinos: [
-      { dia: 1, id: "A", nome: "Contínuo Z2", z: { z1: 8, z2: 24 }, desc: "5 min aquecendo, 24 min em Z2, 3 min desacelerando." },
-      { dia: 3, id: "B", nome: "Intervalado 4×3", z: { z1: 18, z4: 12 }, desc: "5 min aquecendo, 4 blocos de 3 min em Z4 com 3 min fáceis entre eles, 4 min desacelerando." },
-      { dia: 5, id: "C", nome: "Contínuo Z2", z: { z1: 8, z2: 24 }, desc: "5 min aquecendo, 24 min em Z2, 3 min desacelerando." },
-    ],
-  },
-  {
-    de: 5, ate: 6, nome: "4×4 completo",
-    resumo: "O protocolo clássico de 4 blocos de 4 minutos, o estímulo mais estudado para VO₂ máx.",
-    treinos: [
-      { dia: 1, id: "A", nome: "Contínuo Z2", z: { z1: 8, z2: 27 }, desc: "5 min aquecendo, 27 min em Z2, 3 min desacelerando." },
-      { dia: 3, id: "B", nome: "Intervalado 4×4", z: { z1: 18, z4: 16 }, desc: "5 min aquecendo, 4 blocos de 4 min em Z4 com 3 min fáceis entre eles, 4 min desacelerando." },
-      { dia: 5, id: "C", nome: "Contínuo Z2", z: { z1: 8, z2: 27 }, desc: "5 min aquecendo, 27 min em Z2, 3 min desacelerando." },
-    ],
-  },
-  {
-    de: 7, ate: 8, nome: "Consolidação",
-    resumo: "Mantém o 4×4 e adiciona uma dose leve de Z3 no terceiro treino.",
-    treinos: [
-      { dia: 1, id: "A", nome: "Contínuo Z2", z: { z1: 8, z2: 30 }, desc: "5 min aquecendo, 30 min em Z2, 3 min desacelerando." },
-      { dia: 3, id: "B", nome: "Intervalado 4×4", z: { z1: 18, z4: 16 }, desc: "5 min aquecendo, 4 blocos de 4 min em Z4 com 3 min fáceis entre eles, 4 min desacelerando." },
-      { dia: 5, id: "C", nome: "Contínuo com Z3", z: { z1: 7, z2: 20, z3: 8 }, desc: "5 min aquecendo, 20 min em Z2, 8 min em Z3, 2 min desacelerando." },
-    ],
-  },
-  {
-    de: 9, ate: 10, nome: "Pico",
-    resumo: "Uma repetição a mais em Z4 e recuperação um pouco mais curta entre blocos.",
-    treinos: [
-      { dia: 1, id: "A", nome: "Contínuo Z2", z: { z1: 8, z2: 32 }, desc: "5 min aquecendo, 32 min em Z2, 3 min desacelerando." },
-      { dia: 3, id: "B", nome: "Intervalado 5×4", z: { z1: 19, z4: 20 }, desc: "5 min aquecendo, 5 blocos de 4 min em Z4 com 2 a 3 min fáceis entre eles, 4 min desacelerando." },
-      { dia: 5, id: "C", nome: "Contínuo leve", z: { z1: 8, z2: 27 }, desc: "5 min aquecendo, 27 min em Z2 num ritmo confortável, 3 min desacelerando." },
-    ],
-  },
-];
-
-function semanaDoPlano(cfg, date = new Date()) {
-  if (!cfg.planoAtivo || !cfg.planoInicio) return null;
-  const n = Math.floor(diffDias(cfg.planoInicio, iso(mondayOf(date))) / 7) + 1;
-  return n >= 1 && n <= 10 ? n : null;
-}
-
-const faseDaSemana = (n) => PLANO.find((f) => n >= f.de && n <= f.ate);
-
-function treinoDoDia(cfg, dateIso) {
-  const n = semanaDoPlano(cfg, dayjs(dateIso));
-  if (!n) return null;
-  const fase = faseDaSemana(n);
-  const t = fase.treinos.find((x) => x.dia === dayjs(dateIso).getDay());
-  return t ? { ...t, semana: n, fase: fase.nome } : null;
-}
-
-function proximoTreino(cfg) {
-  for (let i = 0; i < 14; i++) {
-    const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + i);
-    const t = treinoDoDia(cfg, iso(d));
-    if (t) return { ...t, data: iso(d), emDias: i };
-  }
-  return null;
-}
 
 /* ================= dados de demonstração ================= */
 
@@ -146,4 +71,4 @@ function faixa(cfg, i) {
   return `${calc(pc[0])}–${calc(pc[1])}`;
 }
 
-export { ZONES, trimp, totalZ, cargaZ, PLANO, semanaDoPlano, faseDaSemana, treinoDoDia, proximoTreino, seed, faixa };
+export { ZONES, trimp, totalZ, seed, faixa };
