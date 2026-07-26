@@ -231,8 +231,8 @@ function Resumo({ st, cfg, sessions, onAjustes, onRegistrar }) {
               <span style={s.big}>{fmt(dia ? dia.total : st.minSemana)}</span>
               <span style={s.unit}>min</span>
               {!dia && (
-                <span style={{ ...s.unit, color: deltaSemana >= 0 ? C.green : C.sec, fontSize: 13 }}>
-                  {deltaSemana >= 0 ? "↑" : "↓"} {fmt(Math.abs(deltaSemana))} vs. semana passada
+                <span style={{ ...s.unit, color: deltaSemana > 0 ? C.green : C.sec, fontSize: 13 }}>
+                  {deltaSemana > 0 ? "↑" : deltaSemana < 0 ? "↓" : "→"} {fmt(Math.abs(deltaSemana))} vs. semana passada
                 </span>
               )}
             </div>
