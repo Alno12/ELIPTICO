@@ -206,26 +206,18 @@ function useStats(sessions, cfg) {
 }
 /* ================= tela: semana ================= */
 
-/* Deslize horizontal. Só dispara quando o movimento é claramente lateral,
-   para não roubar o toque dos botões nem o rolamento vertical da página.
-   Não é um hook: o `ini` vem de fora, para que o `useRef` do chamador seja
-   sempre executado e a contagem de hooks não mude quando o componente
-   retorna cedo por falta de dados. */
-function deslize(ini, aoVoltar, aoAvancar) {
-  return {
-    style: { touchAction: "pan-y" },
-    onPointerDown: (e) => { ini.current = { x: e.clientX, y: e.clientY }; },
-    onPointerCancel: () => { ini.current = null; },
-    onPointerUp: (e) => {
-      const p = ini.current;
-      ini.current = null;
-      if (!p) return;
-      const dx = e.clientX - p.x, dy = e.clientY - p.y;
-      if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
-      (dx > 0 ? aoVoltar : aoAvancar)();
-    },
-  };
-}
+const SetaSemana = ({ dir, ativa, onClick }) => (
+  <button
+    onClick={ativa ? onClick : undefined}
+    disabled={!ativa}
+    aria-label={dir === "anterior" ? "Semana anterior" : "Próxima semana"}
+    style={{ ...s.setaSemana, opacity: ativa ? 1 : 0.35, cursor: ativa ? "pointer" : "default" }}>
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+      stroke={ativa ? C.blue : C.sec} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d={dir === "anterior" ? "M15 5l-7 7 7 7" : "M9 5l7 7-7 7"} />
+    </svg>
+  </button>
+);
 
 const rotuloSemana = (sem) => {
   const ini = dayjs(sem.inicio), fim = dayjs(sem.fim);
@@ -239,7 +231,6 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
   const [selDia, setSelDia] = useState(null);
   const [offset, setOffset] = useState(0);
   const [dir, setDir] = useState(-1);
-  const iniDeslize = useRef(null);
   if (!st) return <><LargeTitle title="Semana" /><Empty /></>;
 
   /* até onde dá para voltar: a semana do primeiro treino registrado */
@@ -252,7 +243,6 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
     setOffset(alvo);
     setSelDia(null);
   };
-  const arrastar = deslize(iniDeslize, () => irPara(offset + 1), () => irPara(offset - 1));
   /* `key={offset}` remonta o bloco a cada semana, o que faz a animação tocar de novo */
   const transicao = (extra) => ({
     key: offset,
@@ -272,28 +262,28 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
 
       {/* herói: os sete dias da semana em exibição */}
       <Card i={0} pad={18}>
-        <div {...arrastar}>
-          <div {...transicao()}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={s.eyebrow}>
-                {dia ? cap(DIAS_NOME[dia.wd]) + ", " + dayjs(dia.date).getDate()
-                  : offset === 0 ? "Esta semana" : rotuloSemana(sem)}
-              </div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
-                <span style={s.big}>{fmt(dia ? dia.total : sem.minutos)}</span>
-                <span style={s.unit}>min</span>
-                {!dia && (
-                  <span style={{ ...s.unit, color: deltaMin > 0 ? C.green : C.sec, fontSize: 13 }}>
-                    {seta(deltaMin)} {fmt(Math.abs(deltaMin))} vs. semana anterior
-                  </span>
-                )}
-              </div>
+        <div>
+          {/* controles fora da transição: se remontassem a cada troca, o toque se perderia */}
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 6 }}>
+            <div style={{ ...s.eyebrow, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {dia ? cap(DIAS_NOME[dia.wd]) + ", " + dayjs(dia.date).getDate()
+                : offset === 0 ? "Esta semana" : rotuloSemana(sem)}
             </div>
-            {offset > 0 && (
-              <button style={s.chipHoje} onClick={() => irPara(0)}>Hoje</button>
-            )}
+            {offset > 0 && <button style={s.chipHoje} onClick={() => irPara(0)}>Hoje</button>}
+            <SetaSemana dir="anterior" ativa={offset < maxOffset} onClick={() => irPara(offset + 1)} />
+            <SetaSemana dir="proxima" ativa={offset > 0} onClick={() => irPara(offset - 1)} />
           </div>
+
+          <div {...transicao()}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+              <span style={s.big}>{fmt(dia ? dia.total : sem.minutos)}</span>
+              <span style={s.unit}>min</span>
+              {!dia && (
+                <span style={{ ...s.unit, color: deltaMin > 0 ? C.green : C.sec, fontSize: 13 }}>
+                  {seta(deltaMin)} {fmt(Math.abs(deltaMin))} vs. semana anterior
+                </span>
+              )}
+            </div>
 
           <WeekStrip dias={sem.dias} sel={selDia} setSel={setSelDia} />
 
@@ -334,11 +324,6 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
           )}
 
           </div>
-          {maxOffset > 0 && (
-            <div style={s.dicaDeslize}>
-              {offset < maxOffset ? "← arraste para ver semanas anteriores" : "início do histórico"}
-            </div>
-          )}
         </div>
       </Card>
 
@@ -395,7 +380,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
         <span style={s.sectionRight}>{offset === 0 ? "esta semana" : rotuloSemana(sem)}</span>
       </SectionTitle>
       <Card i={12}>
-        <div {...arrastar}>
+        <div>
           <div {...transicao()}>
           {sem.grand > 0
             ? <ZoneColumn totals={sem.zonas} grand={sem.grand} cfg={cfg} />
@@ -1986,8 +1971,9 @@ const s = {
     fontSize: 12.5, fontWeight: 600, color: C.blue, background: "rgba(0,122,255,0.1)",
     padding: "6px 12px", borderRadius: 9, flexShrink: 0,
   },
-  dicaDeslize: {
-    fontSize: 11, color: C.ter, textAlign: "center", marginTop: 12, letterSpacing: "0.1px",
+  setaSemana: {
+    width: 32, height: 32, borderRadius: 999, background: C.fill, flexShrink: 0,
+    display: "flex", alignItems: "center", justifyContent: "center",
   },
   metaBarInner: {
     height: "100%", borderRadius: 4, background: "linear-gradient(90deg,#17B84A,#5DE86F)",
