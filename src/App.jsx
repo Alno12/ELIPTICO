@@ -362,7 +362,9 @@ function Resumo({ st, cfg, sessions, onAjustes, onRegistrar }) {
             sub={`semana de ${dayjs(st.recordes.maiorSemana.start).toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}`} />
         )}
         <Line label="Maior sequência de semanas" value={`${st.maiorStreak} semanas`} />
-        <Line label="FC máxima registrada" value={`${st.fcMaxReg} bpm`} />
+        {st.fcMaxReg != null && (
+          <Line label="FC máxima registrada" value={`${st.fcMaxReg} bpm`} />
+        )}
       </Card>
 
       <SectionTitle>Desde o início</SectionTitle>
