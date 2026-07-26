@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcularStats, escala, escalaFacil } from "./stats.js";
+import { calcularStats, escala, escalaFacil, montarSemana } from "./stats.js";
 import { iso, mondayOf } from "./datas.js";
 
 const CFG = {
@@ -102,8 +102,51 @@ describe("plano de treino removido", () => {
   });
 
   it("os dias da semana não carregam treino planejado", () => {
-    const st = calcularStats(historico(4), CFG);
-    expect(st.semanaAtual.every((d) => d.plano === undefined)).toBe(true);
+    expect(montarSemana(historico(4), 0).dias.every((d) => d.plano === undefined)).toBe(true);
+  });
+});
+
+describe("visão de uma semana", () => {
+  it("offset 0 é a semana corrente e contém hoje", () => {
+    const sem = montarSemana(historico(4), 0);
+    expect(sem.dias).toHaveLength(7);
+    expect(sem.inicio).toBe(iso(segundaHa(0)));
+    expect(sem.dias.filter((d) => d.hoje)).toHaveLength(1);
+  });
+
+  it("offset recua uma semana por unidade", () => {
+    const ses = historico(4);
+    expect(montarSemana(ses, 1).inicio).toBe(iso(segundaHa(1)));
+    expect(montarSemana(ses, 3).inicio).toBe(iso(segundaHa(3)));
+  });
+
+  it("agrega minutos, carga, equivalentes e sessões da semana", () => {
+    /* 60 min em Z2 na segunda de cada semana: carga 120, equivalentes 60 */
+    const sem = montarSemana(historico(4), 0);
+    expect(sem.minutos).toBe(60);
+    expect(sem.carga).toBe(120);
+    expect(sem.equiv).toBe(60);
+    expect(sem.sessoes).toBe(1);
+  });
+
+  it("semana sem treino vem zerada, não nula", () => {
+    const sem = montarSemana(historico(4, { vazias: [0] }), 0);
+    expect(sem.minutos).toBe(0);
+    expect(sem.sessoes).toBe(0);
+    expect(sem.dias).toHaveLength(7);
+  });
+
+  it("distribuição por zona da semana soma os dias", () => {
+    const sem = montarSemana(historico(4), 0);
+    expect(sem.zonas.z2).toBe(60);
+    expect(sem.grand).toBe(60);
+  });
+
+  it("dias futuros da semana corrente são marcados", () => {
+    const sem = montarSemana(historico(4), 0);
+    const hojeIdx = sem.dias.findIndex((d) => d.hoje);
+    expect(sem.dias.slice(0, hojeIdx + 1).every((d) => !d.futuro)).toBe(true);
+    expect(sem.dias.slice(hojeIdx + 1).every((d) => d.futuro)).toBe(true);
   });
 });
 
@@ -187,9 +230,25 @@ describe("consistência conta as semanas paradas", () => {
   });
 
   it("semanas na meta contam as paradas no denominador", () => {
+    /* 200 min em Z2 valem 200 min equivalentes, acima da meta de 150 */
     const st = calcularStats(historico(15, { min: 200, vazias: [0, 1, 2, 3, 4] }), CFG);
     expect(st.semanasNaMeta).toBe(10);
     expect(st.totalCompletas).toBe(14);
+  });
+
+  it("a meta é medida em minutos equivalentes, não em minutos brutos", () => {
+    /* 100 min em Z4 = 100 brutos, mas 200 equivalentes: bate a meta de 150 */
+    const emZ4 = historico(6).map((x) => ({
+      ...x, zones: { z1: 0, z2: 0, z3: 0, z4: 100, z5: 0 }, total: 100,
+    }));
+    const st = calcularStats(emZ4, CFG);
+    expect(st.semanasNaMeta).toBe(5);
+
+    /* 160 min em Z1 = 160 brutos, mas 0 equivalentes: não bate */
+    const emZ1 = historico(6).map((x) => ({
+      ...x, zones: { z1: 160, z2: 0, z3: 0, z4: 0, z5: 0 }, total: 160,
+    }));
+    expect(calcularStats(emZ1, CFG).semanasNaMeta).toBe(0);
   });
 
   it("sem nenhuma semana parada, a média não muda", () => {

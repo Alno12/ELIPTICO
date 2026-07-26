@@ -1,6 +1,44 @@
 import { sum, desvio, pearson } from "./util.js";
 import { iso, dayjs, daysAgo, diffDias, mondayOf, DIAS_CURTO } from "./datas.js";
-import { ZONES, trimp, equiv, equivZ } from "./treino.js";
+import { ZONES, trimp, equiv } from "./treino.js";
+
+/* Visão de uma semana de segunda a domingo. offset 0 é a semana corrente, 1 a
+   anterior, e assim por diante. Pura e independente de `calcularStats`: é o que
+   permite a aba Semana navegar pelo histórico sem recomputar tudo. */
+export function montarSemana(sessions, offset = 0) {
+  const hoje = iso(new Date());
+  const seg = mondayOf(daysAgo(offset * 7));
+  const dias = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(seg); d.setDate(d.getDate() + i);
+    const dISO = iso(d);
+    const ses = sessions.filter((x) => x.date === dISO);
+    dias.push({
+      date: dISO,
+      wd: d.getDay(),
+      futuro: dISO > hoje,
+      hoje: dISO === hoje,
+      sessoes: ses,
+      total: sum(ses, (x) => x.total),
+      carga: sum(ses, trimp),
+      equiv: sum(ses, equiv),
+      zones: Object.fromEntries(ZONES.map((z) => [z.id, sum(ses, (x) => x.zones[z.id] || 0)])),
+    });
+  }
+  const zonas = Object.fromEntries(ZONES.map((z) => [z.id, sum(dias, (d) => d.zones[z.id])]));
+  return {
+    offset,
+    inicio: dias[0].date,
+    fim: dias[6].date,
+    dias,
+    zonas,
+    grand: ZONES.reduce((a, z) => a + zonas[z.id], 0),
+    minutos: sum(dias, (d) => d.total),
+    carga: sum(dias, (d) => d.carga),
+    equiv: sum(dias, (d) => d.equiv),
+    sessoes: sum(dias, (d) => d.sessoes.length),
+  };
+}
 
 /* Núcleo de estatísticas. Puro: entra (sessions, cfg), sai o objeto de métricas.
    Sem React, para poder ser testado sem montar componente. */
@@ -18,32 +56,6 @@ export function calcularStats(sessions, cfg) {
     const load0 = sum(w0, trimp);
     const load1 = sum(w1, trimp);
     const cronica = sum(d28, trimp) / 4;
-
-    /* semana corrente, segunda a domingo */
-    const seg = mondayOf(new Date());
-    const semanaAtual = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(seg); d.setDate(d.getDate() + i);
-      const dISO = iso(d);
-      const ses = sessions.filter((x) => x.date === dISO);
-      semanaAtual.push({
-        date: dISO,
-        wd: d.getDay(),
-        futuro: dISO > hoje,
-        hoje: dISO === hoje,
-        sessoes: ses,
-        total: sum(ses, (x) => x.total),
-        carga: sum(ses, trimp),
-        zones: Object.fromEntries(ZONES.map((z) => [z.id, sum(ses, (x) => x.zones[z.id] || 0)])),
-        equiv: sum(ses, equiv),
-      });
-    }
-    const semanaPassada = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(seg); d.setDate(d.getDate() - 7 + i);
-      const ses = sessions.filter((x) => x.date === iso(d));
-      semanaPassada.push({ total: sum(ses, (x) => x.total), equiv: sum(ses, equiv) });
-    }
 
     /* carga diária contínua */
     const porDia = {};
@@ -120,7 +132,9 @@ export function calcularStats(sessions, cfg) {
     const comTreino = todasSemanas.filter((w) => w.sessoes > 0);
     const ult8 = fechadas.slice(-8);
     const variacaoSemanal = desvio(ult8.map((w) => w.minutos));
-    const semanasNaMeta = fechadas.filter((w) => w.minutos >= cfg.weeklyGoal).length;
+    /* a meta é medida em minutos equivalentes, como a barra da aba Semana;
+       comparar contra minutos brutos aqui daria dois critérios para a mesma meta */
+    const semanasNaMeta = fechadas.filter((w) => w.equiv >= cfg.weeklyGoal).length;
 
     /* zonas */
     const zoneTotals = Object.fromEntries(ZONES.map((z) => [z.id, sum(sessions, (x) => x.zones[z.id] || 0)]));
@@ -200,12 +214,13 @@ export function calcularStats(sessions, cfg) {
     const meses = {};
     sessions.forEach((x) => {
       const k = x.date.slice(0, 7);
-      meses[k] ||= { minutos: 0, carga: 0, sessoes: 0 };
-      meses[k].minutos += x.total; meses[k].carga += trimp(x); meses[k].sessoes += 1;
+      meses[k] ||= { minutos: 0, carga: 0, equiv: 0, sessoes: 0 };
+      meses[k].minutos += x.total; meses[k].carga += trimp(x);
+      meses[k].equiv += equiv(x); meses[k].sessoes += 1;
     });
     const mesAtualK = hoje.slice(0, 7);
     const mesAntK = iso(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 15)).slice(0, 7);
-    const mesAtual = meses[mesAtualK] || { minutos: 0, carga: 0, sessoes: 0 };
+    const mesAtual = meses[mesAtualK] || { minutos: 0, carga: 0, equiv: 0, sessoes: 0 };
     const mesAnterior = meses[mesAntK] || null;
     const diaDoMes = new Date().getDate();
     const diasNoMes = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
@@ -216,24 +231,14 @@ export function calcularStats(sessions, cfg) {
     const maiorSemana = comTreino.length ? comTreino.reduce((a, b) => (b.minutos > a.minutos ? b : a)) : null;
 
     const durs = sessions.map((x) => x.total);
-    const minSemana = sum(semanaAtual, (d) => d.total);
-    /* minutos equivalentes: base da meta semanal (Z1 não conta, Z4 e Z5 valem o dobro) */
-    const equivSemana = sum(semanaAtual, (d) => equivZ(d.zones));
 
     return {
       total: sessions.length,
       horas: sum(sessions, (x) => x.total) / 60,
       cargaTotal: sum(sessions, trimp),
       primeiro: inicio,
-      semanaAtual, semanaPassada,
-      minSemana, equivSemana,
-      equivSemanaPassada: sum(semanaPassada, (d) => d.equiv),
       equivTotal: sum(sessions, equiv),
       equiv28: sum(d28, equiv),
-      cargaSemana: sum(semanaAtual, (d) => d.carga),
-      sessoesSemana: sum(semanaAtual, (d) => d.sessoes.length),
-      z3Semana: sum(semanaAtual, (d) => d.zones.z3 + d.zones.z4 + d.zones.z5),
-      minSemanaPassada: sum(semanaPassada, (d) => d.total),
       semana: {
         minutos: sum(w0, (x) => x.total), sessoes: w0.length, carga: load0,
         equiv: sum(w0, equiv),

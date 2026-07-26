@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 
 import { sum, fmt, clamp, cap, minSeg, deMinSeg, mmss } from "./lib/util.js";
-import { DIAS_CURTO, DIAS_NOME, iso, dayjs, daysAgo, mondayOf, longDate, shortDate } from "./lib/datas.js";
+import { DIAS_CURTO, DIAS_NOME, iso, dayjs, daysAgo, diffDias, mondayOf, longDate, shortDate } from "./lib/datas.js";
 import { ZONES, trimp, totalZ, equiv, equivZ, seed, faixa } from "./lib/treino.js";
 import { chaveSessao, sessoesDeCsv } from "./lib/csv.js";
-import { calcularStats, escala, escalaFacil } from "./lib/stats.js";
+import { calcularStats, escala, escalaFacil, montarSemana } from "./lib/stats.js";
 
 /* ================= constantes ================= */
 
@@ -170,8 +170,7 @@ export default function App() {
         <div key={tab} style={{ paddingBottom: 118 }}>
           {tab === "resumo" && (
             <Resumo st={st} cfg={cfg} sessions={sessions}
-              onAjustes={() => setSheet("cfg")}
-              onRegistrar={abrirRegistro} />
+              onAjustes={() => setSheet("cfg")} />
           )}
           {tab === "tendencias" && <Tendencias sessions={sessions} st={st} />}
           {tab === "analise" && <Analise st={st} cfg={cfg} />}
@@ -207,122 +206,139 @@ function useStats(sessions, cfg) {
 }
 /* ================= tela: semana ================= */
 
-function Resumo({ st, cfg, sessions, onAjustes, onRegistrar }) {
+/* Deslize horizontal. Só dispara quando o movimento é claramente lateral,
+   para não roubar o toque dos botões nem o rolamento vertical da página.
+   Não é um hook: o `ini` vem de fora, para que o `useRef` do chamador seja
+   sempre executado e a contagem de hooks não mude quando o componente
+   retorna cedo por falta de dados. */
+function deslize(ini, aoVoltar, aoAvancar) {
+  return {
+    style: { touchAction: "pan-y" },
+    onPointerDown: (e) => { ini.current = { x: e.clientX, y: e.clientY }; },
+    onPointerCancel: () => { ini.current = null; },
+    onPointerUp: (e) => {
+      const p = ini.current;
+      ini.current = null;
+      if (!p) return;
+      const dx = e.clientX - p.x, dy = e.clientY - p.y;
+      if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+      (dx > 0 ? aoVoltar : aoAvancar)();
+    },
+  };
+}
+
+const rotuloSemana = (sem) => {
+  const ini = dayjs(sem.inicio), fim = dayjs(sem.fim);
+  const mes = (d) => d.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "");
+  return ini.getMonth() === fim.getMonth()
+    ? `${ini.getDate()} a ${fim.getDate()} de ${mes(fim)}`
+    : `${ini.getDate()} de ${mes(ini)} a ${fim.getDate()} de ${mes(fim)}`;
+};
+
+function Resumo({ st, cfg, sessions, onAjustes }) {
   const [selDia, setSelDia] = useState(null);
+  const [offset, setOffset] = useState(0);
+  const iniDeslize = useRef(null);
   if (!st) return <><LargeTitle title="Semana" /><Empty /></>;
 
-  const pct = Math.min(100, (st.equivSemana / st.meta) * 100);
-  const feitoHoje = st.semanaAtual.find((d) => d.hoje)?.sessoes.length > 0;
-  const dia = selDia != null ? st.semanaAtual.find((d) => d.date === selDia) : null;
-  const deltaSemana = st.minSemana - st.minSemanaPassada;
+  /* até onde dá para voltar: a semana do primeiro treino registrado */
+  const maxOffset = Math.max(0, Math.floor(diffDias(iso(mondayOf(dayjs(st.primeiro))), iso(mondayOf(new Date()))) / 7));
+  const irPara = (n) => { setOffset(clamp(n, 0, maxOffset)); setSelDia(null); };
+  const arrastar = deslize(iniDeslize, () => irPara(offset + 1), () => irPara(offset - 1));
+
+  const sem = montarSemana(sessions, offset);
+  const ant = montarSemana(sessions, offset + 1);
+  const pct = Math.min(100, st.meta ? (sem.equiv / st.meta) * 100 : 0);
+  const dia = selDia != null ? sem.dias.find((d) => d.date === selDia) : null;
+  const deltaMin = sem.minutos - ant.minutos;
+  const seta = (v) => (v > 0 ? "↑" : v < 0 ? "↓" : "→");
 
   return (
     <>
       <LargeTitle title="Semana" action={{ label: "Ajustes", onClick: onAjustes }} />
 
-      {/* herói: os sete dias */}
+      {/* herói: os sete dias da semana em exibição */}
       <Card i={0} pad={18}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-          <div>
-            <div style={s.eyebrow}>
-              {dia ? cap(DIAS_NOME[dia.wd]) + ", " + dayjs(dia.date).getDate() : "Segunda a domingo"}
-            </div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 3 }}>
-              <span style={s.big}>{fmt(dia ? dia.total : st.minSemana)}</span>
-              <span style={s.unit}>min</span>
-              {!dia && (
-                <span style={{ ...s.unit, color: deltaSemana > 0 ? C.green : C.sec, fontSize: 13 }}>
-                  {deltaSemana > 0 ? "↑" : deltaSemana < 0 ? "↓" : "→"} {fmt(Math.abs(deltaSemana))} vs. semana passada
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <WeekStrip dias={st.semanaAtual} sel={selDia} setSel={setSelDia} />
-
-        {dia ? (
-          <div style={s.diaDetalhe}>
-            {dia.sessoes.length > 0 ? (
-              <>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={s.rowSub}>{fmt(dia.carga)} TRIMP</span>
-                  <span style={s.rowSub}>
-                    {dia.sessoes[0].avgHr ? `${dia.sessoes[0].avgHr} bpm médios` : "sem FC registrada"}
+        <div {...arrastar}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={s.eyebrow}>
+                {dia ? cap(DIAS_NOME[dia.wd]) + ", " + dayjs(dia.date).getDate()
+                  : offset === 0 ? "Esta semana" : rotuloSemana(sem)}
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
+                <span style={s.big}>{fmt(dia ? dia.total : sem.minutos)}</span>
+                <span style={s.unit}>min</span>
+                {!dia && (
+                  <span style={{ ...s.unit, color: deltaMin > 0 ? C.green : C.sec, fontSize: 13 }}>
+                    {seta(deltaMin)} {fmt(Math.abs(deltaMin))} vs. semana anterior
                   </span>
-                </div>
-                {ZONES.filter((z) => dia.zones[z.id] > 0).map((z) => (
-                  <div key={z.id} style={s.detailRow}>
-                    <span style={{ ...s.dotSm, background: z.color }} />
-                    <span style={{ flex: 1, color: C.sec }}>{z.label}</span>
-                    <span style={s.mono}>{mmss(dia.zones[z.id])} min</span>
-                  </div>
-                ))}
-              </>
-            ) : (
-              <div style={{ ...s.rowSub, textAlign: "center", padding: "6px 0" }}>Dia de descanso</div>
+                )}
+              </div>
+            </div>
+            {offset > 0 && (
+              <button style={s.chipHoje} onClick={() => irPara(0)}>Hoje</button>
             )}
           </div>
-        ) : (
-          <div style={{ marginTop: 16 }}>
-            <div style={s.metaBarOuter}>
-              <div style={{ ...s.metaBarInner, width: `${pct}%` }} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 7 }}>
-              <span style={s.rowSub}>{fmt(pct)}% da meta de {st.meta} min equivalentes</span>
-              <span style={s.rowSub}>
-                {st.equivSemana >= st.meta ? "meta atingida" : `faltam ${fmt(st.meta - st.equivSemana)}`}
-              </span>
-            </div>
-          </div>
-        )}
-      </Card>
 
-      {/* registro do dia */}
-      <Card i={1} pad={16}>
-        {feitoHoje ? (
-          <>
-            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              <span style={{ ...s.iconBadge, background: C.green }}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff"
-                  strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-                  <path d={ICONS.meta} />
-                </svg>
-              </span>
-              <div style={{ flex: 1 }}>
-                <div style={s.insightTitle}>Treino de hoje registrado</div>
-                <div style={s.insightBody}>Bom trabalho.</div>
+          <WeekStrip dias={sem.dias} sel={selDia} setSel={setSelDia} />
+
+          {dia ? (
+            <div style={s.diaDetalhe}>
+              {dia.sessoes.length > 0 ? (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                    <span style={s.rowSub}>{fmt(dia.carga)} TRIMP · {fmt(dia.equiv)} min equiv.</span>
+                    <span style={s.rowSub}>
+                      {dia.sessoes[0].avgHr ? `${dia.sessoes[0].avgHr} bpm médios` : "sem FC registrada"}
+                    </span>
+                  </div>
+                  {ZONES.filter((z) => dia.zones[z.id] > 0).map((z) => (
+                    <div key={z.id} style={s.detailRow}>
+                      <span style={{ ...s.dotSm, background: z.color }} />
+                      <span style={{ flex: 1, color: C.sec }}>{z.label}</span>
+                      <span style={s.mono}>{mmss(dia.zones[z.id])} min</span>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <div style={{ ...s.rowSub, textAlign: "center", padding: "6px 0" }}>Dia sem treino</div>
+              )}
+            </div>
+          ) : (
+            <div style={{ marginTop: 16 }}>
+              <div style={s.metaBarOuter}>
+                <div style={{ ...s.metaBarInner, width: `${pct}%` }} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 7 }}>
+                <span style={s.rowSub}>{fmt(sem.equiv)} de {st.meta} min equivalentes</span>
+                <span style={s.rowSub}>
+                  {sem.equiv >= st.meta ? "meta atingida" : `${fmt(pct)}%`}
+                </span>
               </div>
             </div>
-            <button style={s.secondary} onClick={() => onRegistrar()}>Registrar outro treino</button>
-          </>
-        ) : (
-          <>
-            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              <span style={{ ...s.iconBadge, background: C.blue }}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff"
-                  strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-              </span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={s.insightTitle}>Registrar treino</div>
-                <div style={s.insightBody}>Nenhum treino registrado hoje.</div>
-              </div>
+          )}
+
+          {maxOffset > 0 && (
+            <div style={s.dicaDeslize}>
+              {offset < maxOffset ? "← arraste para ver semanas anteriores" : "início do histórico"}
             </div>
-            <button style={s.primary} onClick={() => onRegistrar()}>Novo registro</button>
-          </>
-        )}
+          )}
+        </div>
       </Card>
 
-      <SectionTitle>Esta semana</SectionTitle>
+      <SectionTitle>
+        {offset === 0 ? "Esta semana" : rotuloSemana(sem)}
+      </SectionTitle>
       <div style={s.grid}>
-        <Tile i={2} label="Minutos" value={fmt(st.minSemana)} unit="min" color={C.green} />
-        <Tile i={3} label="Treinos" value={st.sessoesSemana} unit="sessões" color={C.blue} />
-        <Tile i={4} label="Carga" value={fmt(st.cargaSemana)} unit="TRIMP" color={C.orange} />
-        <Tile i={5} label="Zona 3+" value={fmt(st.z3Semana)} unit="min" color={C.red} />
-        <Tile i={6} label="Min. equivalentes" value={fmt(st.equivSemana)} unit="min"
-          delta={st.equivSemanaPassada ? st.equivSemana - st.equivSemanaPassada : null} color={C.purple} />
+        <Tile i={2} label="Minutos" value={fmt(sem.minutos)} unit="min"
+          delta={sem.minutos - ant.minutos} color={C.green} />
+        <Tile i={3} label="Treinos" value={sem.sessoes} unit="sessões"
+          delta={sem.sessoes - ant.sessoes} color={C.blue} />
+        <Tile i={4} label="Carga" value={fmt(sem.carga)} unit="TRIMP"
+          delta={sem.carga - ant.carga} color={C.orange} />
+        <Tile i={5} label="Min. equivalentes" value={fmt(sem.equiv)} unit="min"
+          delta={sem.equiv - ant.equiv} color={C.purple} />
       </div>
 
       <SectionTitle>
@@ -334,27 +350,47 @@ function Resumo({ st, cfg, sessions, onAjustes, onRegistrar }) {
       <Card i={7} pad={0}>
         <Line first label="Média de treinos por semana" value={fmt(st.sessoesPorSemana, 1)} />
         <Line label="Média de minutos por semana" value={`${fmt(st.mediaSemanal)} min`} />
+        <Line label="Média de minutos equivalentes" value={`${fmt(st.equivSemanalMedio)} min`} />
         <Line label="Intervalo médio entre treinos" value={`${fmt(st.intervaloMedio, 1)} dias`} />
         <Line label="Último treino" value={st.desdeUltimo === 0 ? "hoje" : `há ${st.desdeUltimo} ${st.desdeUltimo === 1 ? "dia" : "dias"}`} />
         <Line label="Semanas que bateram a meta" value={`${st.semanasNaMeta} de ${st.totalCompletas}`} />
       </Card>
 
       <SectionTitle>
-        {new Date().toLocaleDateString("pt-BR", { month: "long" })}
+        Este mês
         <span style={s.sectionRight}>projeção {fmt(st.projecaoMes)} min</span>
       </SectionTitle>
       <div style={s.grid}>
         <Tile i={8} label="Minutos" value={fmt(st.mesAtual.minutos)} unit="min"
-          delta={st.mesAnterior ? st.mesAtual.minutos - st.mesAnterior.minutos : null} color={C.green} />
+          delta={st.mesAnterior ? st.mesAtual.minutos - st.mesAnterior.minutos : null}
+          comparado="mês anterior" color={C.green} />
         <Tile i={9} label="Treinos" value={st.mesAtual.sessoes} unit="sessões"
-          delta={st.mesAnterior ? st.mesAtual.sessoes - st.mesAnterior.sessoes : null} color={C.blue} />
+          delta={st.mesAnterior ? st.mesAtual.sessoes - st.mesAnterior.sessoes : null}
+          comparado="mês anterior" color={C.blue} />
+        <Tile i={10} label="Carga" value={fmt(st.mesAtual.carga)} unit="TRIMP"
+          delta={st.mesAnterior ? st.mesAtual.carga - st.mesAnterior.carga : null}
+          comparado="mês anterior" color={C.orange} />
+        <Tile i={11} label="Min. equivalentes" value={fmt(st.mesAtual.equiv)} unit="min"
+          delta={st.mesAnterior ? st.mesAtual.equiv - st.mesAnterior.equiv : null}
+          comparado="mês anterior" color={C.purple} />
       </div>
 
-      <SectionTitle>Distribuição por zona</SectionTitle>
-      <Card i={10}><ZoneColumn totals={st.zoneTotals} grand={st.grand} cfg={cfg} /></Card>
+      <SectionTitle>
+        Distribuição por zona na semana
+        <span style={s.sectionRight}>{offset === 0 ? "esta semana" : rotuloSemana(sem)}</span>
+      </SectionTitle>
+      <Card i={12}>
+        <div {...arrastar}>
+          {sem.grand > 0
+            ? <ZoneColumn totals={sem.zonas} grand={sem.grand} cfg={cfg} />
+            : <p style={{ ...s.foot, margin: 0, textAlign: "center", padding: 20 }}>
+                Nenhum treino nesta semana.
+              </p>}
+        </div>
+      </Card>
 
       <SectionTitle>Recordes</SectionTitle>
-      <Card i={10} pad={0}>
+      <Card i={13} pad={0}>
         <Line first label="Sessão mais longa" value={`${fmt(st.recordes.maisLonga.total)} min`} sub={longDate(st.recordes.maisLonga.date)} />
         <Line label="Sessão mais pesada" value={`${fmt(trimp(st.recordes.maisPesada))} TRIMP`} sub={longDate(st.recordes.maisPesada.date)} />
         {st.recordes.maiorSemana && (
@@ -368,10 +404,11 @@ function Resumo({ st, cfg, sessions, onAjustes, onRegistrar }) {
       </Card>
 
       <SectionTitle>Desde o início</SectionTitle>
-      <Card i={10} pad={0}>
+      <Card i={14} pad={0}>
         <Line first label="Treinos registrados" value={`${st.total}`} />
         <Line label="Tempo total" value={`${fmt(st.horas, 1)} h`} />
         <Line label="Carga acumulada" value={`${fmt(st.cargaTotal)} TRIMP`} />
+        <Line label="Minutos equivalentes" value={`${fmt(st.equivTotal)} min`} />
         <Line label="Duração média" value={`${fmt(st.mediaDur)} min`} />
         <Line label="Contínuos e intervalados" value={`${st.continuos} · ${st.intervalados}`} />
         <Line label="Dia que você mais treina" value={DIAS_NOME[st.melhorDia]} />
@@ -1427,8 +1464,11 @@ function Heatmap({ sessions }) {
   const [sel, setSel] = useState(null);
   const SEMANAS = 15, CELL = 15, GAP = 4.5;
   const mapa = {};
-  sessions.forEach((x) => { mapa[x.date] = (mapa[x.date] || 0) + trimp(x); });
-  const maxCarga = Math.max(1, ...Object.values(mapa));
+  sessions.forEach((x) => {
+    const d = (mapa[x.date] ||= { carga: 0, minutos: 0, equiv: 0 });
+    d.carga += trimp(x); d.minutos += x.total; d.equiv += equiv(x);
+  });
+  const maxCarga = Math.max(1, ...Object.values(mapa).map((d) => d.carga));
   const inicio = mondayOf(daysAgo((SEMANAS - 1) * 7));
   const hoje = iso(new Date());
   const cols = [];
@@ -1446,7 +1486,10 @@ function Heatmap({ sessions }) {
     return `rgba(48,209,88,${o.toFixed(2)})`;
   };
   const W = SEMANAS * (CELL + GAP) + 22, H = 7 * (CELL + GAP) + 16;
-  const totalPeriodo = Object.entries(mapa).filter(([d]) => d >= iso(inicio)).reduce((a, [, v]) => a + v, 0);
+  const noPeriodo = Object.entries(mapa).filter(([d]) => d >= iso(inicio)).map(([, v]) => v);
+  const soma = (k) => noPeriodo.reduce((a, v) => a + v[k], 0);
+  const mostrado = sel ? (mapa[sel] || { carga: 0, minutos: 0, equiv: 0 })
+    : { carga: soma("carga"), minutos: soma("minutos"), equiv: soma("equiv") };
 
   return (
     <>
@@ -1454,8 +1497,11 @@ function Heatmap({ sessions }) {
         <div>
           <div style={s.eyebrow}>{sel ? longDate(sel) : "Últimas 15 semanas"}</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 5, marginTop: 2 }}>
-            <span style={{ ...s.big, fontSize: 26 }}>{fmt(sel ? mapa[sel] || 0 : totalPeriodo)}</span>
+            <span style={{ ...s.big, fontSize: 26 }}>{fmt(mostrado.carga)}</span>
             <span style={s.unit}>TRIMP</span>
+          </div>
+          <div style={{ ...s.rowSub, marginTop: 3 }}>
+            {fmt(mostrado.minutos)} min · {fmt(mostrado.equiv)} min equivalentes
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -1475,7 +1521,7 @@ function Heatmap({ sessions }) {
           return (
             <rect key={date} x={22 + w * (CELL + GAP)} y={d * (CELL + GAP)}
               width={CELL} height={CELL} rx="4.2"
-              fill={futuro ? "transparent" : cor(mapa[date] || 0)}
+              fill={futuro ? "transparent" : cor(mapa[date]?.carga || 0)}
               stroke={on ? C.label : "transparent"} strokeWidth="1.6"
               onClick={() => setSel(on || futuro ? null : date)}
               style={{ cursor: futuro ? "default" : "pointer" }} />
@@ -1705,7 +1751,7 @@ const Empty = () => (
   </p></Card>
 );
 
-function Tile({ label, value, unit, delta, suffix = "", color, i }) {
+function Tile({ label, value, unit, delta, suffix = "", comparado = "anterior", color, i }) {
   return (
     <div className="card" style={{ ...s.tile, animationDelay: `${i * 0.035}s` }}>
       <div style={s.tileLabel}>{label}</div>
@@ -1715,7 +1761,7 @@ function Tile({ label, value, unit, delta, suffix = "", color, i }) {
       </div>
       {delta != null && (
         <div style={{ ...s.rowSub, marginTop: 5, color: delta > 0 ? C.green : C.sec }}>
-          {delta > 0 ? "↑" : delta < 0 ? "↓" : "→"} {fmt(Math.abs(delta))}{suffix} vs. anterior
+          {delta > 0 ? "↑" : delta < 0 ? "↓" : "→"} {fmt(Math.abs(delta))}{suffix} vs. {comparado}
         </div>
       )}
     </div>
@@ -1916,6 +1962,13 @@ const s = {
   diaMin: { fontSize: 11, fontWeight: 600, marginTop: 6, fontVariantNumeric: "tabular-nums" },
   diaDetalhe: { marginTop: 14, paddingTop: 12, borderTop: `0.5px solid ${C.sep}`, animation: "fade .2s ease" },
   metaBarOuter: { height: 7, borderRadius: 4, background: C.fill, overflow: "hidden" },
+  chipHoje: {
+    fontSize: 12.5, fontWeight: 600, color: C.blue, background: "rgba(0,122,255,0.1)",
+    padding: "6px 12px", borderRadius: 9, flexShrink: 0,
+  },
+  dicaDeslize: {
+    fontSize: 11, color: C.ter, textAlign: "center", marginTop: 12, letterSpacing: "0.1px",
+  },
   metaBarInner: {
     height: "100%", borderRadius: 4, background: "linear-gradient(90deg,#17B84A,#5DE86F)",
     transition: "width .7s cubic-bezier(.16,.84,.28,1)",
