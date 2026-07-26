@@ -4,7 +4,7 @@ import { iso, mondayOf } from "./datas.js";
 
 const CFG = {
   maxHr: 193, restHr: 65, method: "hrr", weeklyGoal: 150,
-  vo2max: 41.8, planoInicio: null, planoAtivo: false, demoLimpo: true,
+  vo2max: 41.8, demoLimpo: true,
 };
 
 const sessao = (date, min = 60) => ({
@@ -71,6 +71,39 @@ describe("sequências de semanas", () => {
     const st = calcularStats(historico(20, { vazias: [0, 1] }), CFG);
     expect(st.streak).toBe(0);
     expect(st.maiorStreak).toBe(18);
+  });
+});
+
+describe("série semanal começa no primeiro treino", () => {
+  it("não cria semanas anteriores ao primeiro registro", () => {
+    const st = calcularStats(historico(3), CFG);
+    expect(st.weeks).toHaveLength(3);
+    expect(st.weeks[0].start).toBe(iso(segundaHa(2)));
+  });
+
+  it("uma única semana de histórico produz uma única entrada", () => {
+    const st = calcularStats(historico(1), CFG);
+    expect(st.weeks).toHaveLength(1);
+    expect(st.weeks[0].start).toBe(iso(segundaHa(0)));
+  });
+
+  it("histórico longo mantém o recorte de 17 semanas para os gráficos", () => {
+    const st = calcularStats(historico(40), CFG);
+    expect(st.weeks).toHaveLength(17);
+    expect(st.weeks[0].start).toBe(iso(segundaHa(16)));
+  });
+});
+
+describe("plano de treino removido", () => {
+  it("não expõe mais métricas de aderência", () => {
+    const st = calcularStats(historico(4), CFG);
+    expect(st.planoPrev).toBeUndefined();
+    expect(st.planoFeito).toBeUndefined();
+  });
+
+  it("os dias da semana não carregam treino planejado", () => {
+    const st = calcularStats(historico(4), CFG);
+    expect(st.semanaAtual.every((d) => d.plano === undefined)).toBe(true);
   });
 });
 

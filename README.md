@@ -1,7 +1,7 @@
 # Zonas · Elíptico
 
 App de registro de treinos aeróbicos por zona de frequência cardíaca, com análise de carga
-(TRIMP, ACWR, monotonia, modelo de aptidão/fadiga), tendências e um plano de treino de 10 semanas.
+(TRIMP, ACWR, monotonia, modelo de aptidão/fadiga) e tendências.
 
 Melhorias mapeadas e ainda não implementadas estão em [MELHORIAS.md](MELHORIAS.md).
 

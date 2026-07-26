@@ -1,6 +1,6 @@
 import { sum, desvio, pearson } from "./util.js";
 import { iso, dayjs, daysAgo, diffDias, mondayOf, DIAS_CURTO } from "./datas.js";
-import { ZONES, trimp, treinoDoDia } from "./treino.js";
+import { ZONES, trimp } from "./treino.js";
 
 /* Núcleo de estatísticas. Puro: entra (sessions, cfg), sai o objeto de métricas.
    Sem React, para poder ser testado sem montar componente. */
@@ -35,7 +35,6 @@ export function calcularStats(sessions, cfg) {
         total: sum(ses, (x) => x.total),
         carga: sum(ses, trimp),
         zones: Object.fromEntries(ZONES.map((z) => [z.id, sum(ses, (x) => x.zones[z.id] || 0)])),
-        plano: treinoDoDia(cfg, dISO),
       });
     }
     const semanaPassada = [];
@@ -79,17 +78,17 @@ export function calcularStats(sessions, cfg) {
     const monotonia = sd7 > 0 ? media7 / sd7 : null;
     const strain = monotonia != null ? load0 * monotonia : null;
 
-    /* Série semanal de TODO o histórico. `weeks`, mais abaixo, é só o recorte
-       de 17 semanas que os gráficos desenham — recordes, médias e o perfil por
-       dia da semana precisam do histórico inteiro, senão saturam na janela.
-       A série é estendida para no mínimo 17 semanas para o recorte nunca
-       encolher e mudar a aparência dos gráficos em históricos curtos. */
+    /* Série semanal de TODO o histórico, começando na semana do primeiro treino
+       registrado — semanas anteriores a ele não existem para o app e não aparecem
+       em lugar nenhum. `weeks`, mais abaixo, é o recorte das 17 últimas que os
+       gráficos desenham; recordes, médias e o perfil por dia da semana precisam
+       do histórico inteiro, senão saturam na janela de exibição. */
     const nSemanasHist = Math.floor(diffDias(iso(mondayOf(dayjs(inicio))), iso(mondayOf(new Date()))) / 7) + 1;
     const porSemana = {};
     sessions.forEach((x) => { (porSemana[iso(mondayOf(dayjs(x.date)))] ||= []).push(x); });
 
     const todasSemanas = [];
-    for (let i = Math.max(16, nSemanasHist - 1); i >= 0; i--) {
+    for (let i = nSemanasHist - 1; i >= 0; i--) {
       const start = mondayOf(daysAgo(i * 7));
       const end = new Date(start); end.setDate(end.getDate() + 6);
       const inWeek = porSemana[iso(start)] || [];
@@ -191,19 +190,6 @@ export function calcularStats(sessions, cfg) {
       else if (i < todasSemanas.length - 1) break;
     }
 
-    /* aderência ao plano */
-    let planoPrev = 0, planoFeito = 0;
-    if (cfg.planoAtivo && cfg.planoInicio) {
-      for (let i = 0; i < 28; i++) {
-        const d = iso(daysAgo(i));
-        if (d < cfg.planoInicio) continue;
-        if (treinoDoDia(cfg, d)) {
-          planoPrev++;
-          if (sessions.some((x) => x.date === d)) planoFeito++;
-        }
-      }
-    }
-
     /* meses */
     const meses = {};
     sessions.forEach((x) => {
@@ -257,7 +243,6 @@ export function calcularStats(sessions, cfg) {
       intervaloMedio, desdeUltimo, streak, maiorStreak, melhorDia, perfilDia,
       acum28: acum(0), acum28ant: acum(28),
       variacaoSemanal, semanasNaMeta, totalCompletas: completas.length,
-      planoPrev, planoFeito,
       mediaDur: durs.reduce((a, b) => a + b, 0) / durs.length,
       maiorDur: Math.max(...durs),
       fcMaxReg: Math.max(...sessions.map((x) => x.maxHr || 0)),

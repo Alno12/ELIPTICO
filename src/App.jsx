@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
 
 import { sum, fmt, clamp, cap } from "./lib/util.js";
 import { DIAS_CURTO, DIAS_NOME, iso, dayjs, daysAgo, diffDias, mondayOf, longDate, shortDate } from "./lib/datas.js";
-import { ZONES, trimp, totalZ, PLANO, semanaDoPlano, treinoDoDia, proximoTreino, seed, faixa } from "./lib/treino.js";
+import { ZONES, trimp, totalZ, seed, faixa } from "./lib/treino.js";
 import { chaveSessao, sessoesDeCsv } from "./lib/csv.js";
 import { calcularStats, escala, escalaFacil } from "./lib/stats.js";
 
@@ -28,7 +28,7 @@ const KEY = "eliptico:v5:sessoes";
 const KEY_CFG = "eliptico:v5:config";
 const DEFAULT_CFG = {
   maxHr: 193, restHr: 65, method: "hrr", weeklyGoal: 150,
-  vo2max: 41.8, planoInicio: null, planoAtivo: true, demoLimpo: false,
+  vo2max: 41.8, demoLimpo: false,
 };
 
 /* ================= armazenamento tolerante a falha ================= */
@@ -71,7 +71,6 @@ export default function App() {
       try {
         conf = { ...DEFAULT_CFG, ...JSON.parse((await store.get(KEY_CFG)).value) };
       } catch { /* padrão */ }
-      if (!conf.planoInicio) conf = { ...conf, planoInicio: iso(mondayOf(new Date())) };
 
       let data = null;
       try {
@@ -172,11 +171,10 @@ export default function App() {
           {tab === "resumo" && (
             <Resumo st={st} cfg={cfg} sessions={sessions}
               onAjustes={() => setSheet("cfg")}
-              onPlano={() => setSheet("plano")}
               onRegistrar={abrirRegistro} />
           )}
           {tab === "tendencias" && <Tendencias sessions={sessions} st={st} />}
-          {tab === "analise" && <Analise st={st} cfg={cfg} onPlano={() => setSheet("plano")} />}
+          {tab === "analise" && <Analise st={st} cfg={cfg} />}
           {tab === "historico" && (
             <Historico
               sessions={sessions}
@@ -196,12 +194,6 @@ export default function App() {
           onClose={() => { setSheet(null); setEditando(null); }} />
       )}
       {sheet === "cfg" && <Ajustes cfg={cfg} onChange={saveCfg} onClose={() => setSheet(null)} />}
-      {sheet === "plano" && (
-        <PlanoSheet cfg={cfg} sessions={sessions} onChange={saveCfg}
-          onClose={() => setSheet(null)}
-          onUsar={(t, data) => { setSheet(null); abrirRegistro(null, { z: t.z, date: data }); }} />
-      )}
-
       {toast && <div style={s.toast}>{toast}</div>}
       <TabBar tab={tab} setTab={setTab} onPlus={() => abrirRegistro()} />
     </Shell>
@@ -215,15 +207,11 @@ function useStats(sessions, cfg) {
 }
 /* ================= tela: semana ================= */
 
-function Resumo({ st, cfg, sessions, onAjustes, onPlano, onRegistrar }) {
+function Resumo({ st, cfg, sessions, onAjustes, onRegistrar }) {
   const [selDia, setSelDia] = useState(null);
   if (!st) return <><LargeTitle title="Semana" /><Empty /></>;
 
   const pct = Math.min(100, (st.minSemana / st.meta) * 100);
-  const hojeISO = iso(new Date());
-  const planoHoje = treinoDoDia(cfg, hojeISO);
-  const proximo = proximoTreino(cfg);
-  const semanaN = semanaDoPlano(cfg);
   const feitoHoje = st.semanaAtual.find((d) => d.hoje)?.sessoes.length > 0;
   const dia = selDia != null ? st.semanaAtual.find((d) => d.date === selDia) : null;
   const deltaSemana = st.minSemana - st.minSemanaPassada;
@@ -249,11 +237,6 @@ function Resumo({ st, cfg, sessions, onAjustes, onPlano, onRegistrar }) {
               )}
             </div>
           </div>
-          {semanaN && (
-            <button style={s.planoBadge} onClick={onPlano}>
-              Semana {semanaN}/10
-            </button>
-          )}
         </div>
 
         <WeekStrip dias={st.semanaAtual} sel={selDia} setSel={setSelDia} />
@@ -276,11 +259,6 @@ function Resumo({ st, cfg, sessions, onAjustes, onPlano, onRegistrar }) {
                   </div>
                 ))}
               </>
-            ) : dia.plano ? (
-              <div>
-                <div style={s.rowLabel}>Planejado: {dia.plano.nome}</div>
-                <div style={{ ...s.rowSub, marginTop: 4 }}>{dia.plano.desc}</div>
-              </div>
             ) : (
               <div style={{ ...s.rowSub, textAlign: "center", padding: "6px 0" }}>Dia de descanso</div>
             )}
@@ -300,31 +278,9 @@ function Resumo({ st, cfg, sessions, onAjustes, onPlano, onRegistrar }) {
         )}
       </Card>
 
-      {/* treino de hoje + registro */}
+      {/* registro do dia */}
       <Card i={1} pad={16}>
-        {planoHoje && !feitoHoje ? (
-          <>
-            <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-              <span style={{ ...s.iconBadge, background: planoHoje.z.z4 ? C.orange : C.green }}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff"
-                  strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <path d={planoHoje.z.z4 ? ICONS.raio : ICONS.coracao} />
-                </svg>
-              </span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={s.eyebrow}>Treino de hoje · {planoHoje.fase}</div>
-                <div style={{ ...s.insightTitle, marginTop: 2 }}>
-                  {planoHoje.nome} · {totalZ(planoHoje.z)} min
-                </div>
-                <div style={{ ...s.insightBody, marginTop: 3 }}>{planoHoje.desc}</div>
-              </div>
-            </div>
-            <button style={s.primary} onClick={() => onRegistrar(null, { z: planoHoje.z, date: hojeISO })}>
-              Registrar treino de hoje
-            </button>
-            <button style={s.secondary} onClick={() => onRegistrar()}>Registrar outro treino</button>
-          </>
-        ) : feitoHoje ? (
+        {feitoHoje ? (
           <>
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
               <span style={{ ...s.iconBadge, background: C.green }}>
@@ -335,11 +291,7 @@ function Resumo({ st, cfg, sessions, onAjustes, onPlano, onRegistrar }) {
               </span>
               <div style={{ flex: 1 }}>
                 <div style={s.insightTitle}>Treino de hoje registrado</div>
-                <div style={s.insightBody}>
-                  {proximo && proximo.emDias > 0
-                    ? `Próximo: ${proximo.nome} na ${DIAS_NOME[dayjs(proximo.data).getDay()]}.`
-                    : "Bom trabalho."}
-                </div>
+                <div style={s.insightBody}>Bom trabalho.</div>
               </div>
             </div>
             <button style={s.secondary} onClick={() => onRegistrar()}>Registrar outro treino</button>
@@ -355,13 +307,7 @@ function Resumo({ st, cfg, sessions, onAjustes, onPlano, onRegistrar }) {
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={s.insightTitle}>Registrar treino</div>
-                <div style={s.insightBody}>
-                  {proximo
-                    ? proximo.emDias === 0
-                      ? `Hoje: ${proximo.nome}, ${totalZ(proximo.z)} min.`
-                      : `Próximo do plano: ${proximo.nome} na ${DIAS_NOME[dayjs(proximo.data).getDay()]}.`
-                    : "Sem treino planejado para hoje."}
-                </div>
+                <div style={s.insightBody}>Nenhum treino registrado hoje.</div>
               </div>
             </div>
             <button style={s.primary} onClick={() => onRegistrar()}>Novo registro</button>
@@ -389,9 +335,6 @@ function Resumo({ st, cfg, sessions, onAjustes, onPlano, onRegistrar }) {
         <Line label="Intervalo médio entre treinos" value={`${fmt(st.intervaloMedio, 1)} dias`} />
         <Line label="Último treino" value={st.desdeUltimo === 0 ? "hoje" : `há ${st.desdeUltimo} ${st.desdeUltimo === 1 ? "dia" : "dias"}`} />
         <Line label="Semanas que bateram a meta" value={`${st.semanasNaMeta} de ${st.totalCompletas}`} />
-        {st.planoPrev > 0 && (
-          <Line label="Aderência ao plano, 28 dias" value={`${st.planoFeito} de ${st.planoPrev}`} />
-        )}
       </Card>
 
       <SectionTitle>
@@ -536,8 +479,8 @@ function Tendencias({ sessions, st }) {
         <div style={s.eyebrow}>Minutos médios por dia da semana</div>
         <WeekdayChart perfil={st.perfilDia} />
         <p style={s.foot}>
-          Seu dia mais forte é {DIAS_NOME[st.melhorDia]}. Dias com barra baixa mas não zerada costumam ser
-          os que mais escapam do plano — vale conferir se o horário está mesmo funcionando.
+          Seu dia mais forte é {DIAS_NOME[st.melhorDia]}. Dias com barra baixa mas não zerada são os
+          que você começa e abandona — vale conferir se o horário está mesmo funcionando.
         </p>
       </Card>
 
@@ -578,7 +521,7 @@ function Tendencias({ sessions, st }) {
 
 /* ================= tela: análise ================= */
 
-function Analise({ st, cfg, onPlano }) {
+function Analise({ st, cfg }) {
   if (!st) return <><LargeTitle title="Análise" /><Empty /></>;
 
   const tsb = st.forma.tsb;
@@ -716,26 +659,6 @@ function Analise({ st, cfg, onPlano }) {
           <p style={{ ...s.foot, marginTop: 0 }}>Registre o esforço percebido em pelo menos 6 treinos para ver esta análise.</p>
         )}
       </Card>
-
-      {st.planoPrev > 0 && (
-        <>
-          <SectionTitle>Plano de 10 semanas</SectionTitle>
-          <Card i={7}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <div>
-                <div style={s.eyebrow}>Aderência nos últimos 28 dias</div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 5, marginTop: 3 }}>
-                  <span style={{ ...s.big, fontSize: 30, color: st.planoFeito / st.planoPrev >= 0.75 ? C.green : C.orange }}>
-                    {fmt((st.planoFeito / st.planoPrev) * 100)}%
-                  </span>
-                  <span style={s.unit}>{st.planoFeito} de {st.planoPrev} sessões</span>
-                </div>
-              </div>
-              <button style={s.linkSm} onClick={onPlano}>Ver plano</button>
-            </div>
-          </Card>
-        </>
-      )}
 
       <SectionTitle>Leituras</SectionTitle>
       {insights(st).map((x, i) => <Insight key={x.t} data={x} i={8 + i} />)}
@@ -921,7 +844,6 @@ function RegistrarSheet({ cfg, inicial, onSave, onClose }) {
   const n = (v) => (v === "" ? 0 : Math.max(0, Number(v) || 0));
   const total = ZONES.reduce((a, z) => a + n(f[z.id]), 0);
   const carga = ZONES.reduce((a, z) => a + n(f[z.id]) * z.w, 0);
-  const planoHoje = treinoDoDia(cfg, f.date);
 
   const aplicar = (z) => setF({ ...f, ...Object.fromEntries(ZONES.map((k) => [k.id, z[k.id] ? String(z[k.id]) : ""])) });
 
@@ -949,21 +871,6 @@ function RegistrarSheet({ cfg, inicial, onSave, onClose }) {
           <input style={s.inputRight} type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} />
         </div>
       </Card>
-
-      {planoHoje && (
-        <Card>
-          <div style={{ display: "flex", gap: 11, alignItems: "center" }}>
-            <span style={{ ...s.zoneBadge, background: planoHoje.z.z4 ? C.orange : C.green, width: 26, height: 26 }}>
-              {planoHoje.id}
-            </span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={s.rowLabel}>{planoHoje.nome}</div>
-              <div style={s.rowSub}>Planejado para este dia · {totalZ(planoHoje.z)} min</div>
-            </div>
-            <button style={s.chipBtn} onClick={() => aplicar(planoHoje.z)}>Usar</button>
-          </div>
-        </Card>
-      )}
 
       <SectionTitle>Modelos rápidos</SectionTitle>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
@@ -1027,81 +934,6 @@ function RegistrarSheet({ cfg, inicial, onSave, onClose }) {
   );
 }
 
-function PlanoSheet({ cfg, sessions, onChange, onClose, onUsar }) {
-  const atual = semanaDoPlano(cfg);
-  const hoje = iso(new Date());
-
-  return (
-    <Sheet onClose={onClose} titulo="Plano de 10 semanas"
-      direita={<button style={s.done} onClick={onClose}>OK</button>}>
-      <Card>
-        <div style={s.eyebrow}>Objetivo</div>
-        <p style={{ ...s.insightBody, marginTop: 4 }}>
-          Construir capacidade de sustentar a Zona 4 partindo do zero em intervalado, mantendo a base
-          aeróbica em Z2. Três sessões por semana: segunda, quarta e sexta.
-        </p>
-        <div style={{ ...s.row, borderTop: `0.5px solid ${C.sep}`, marginTop: 10 }}>
-          <span style={{ flex: 1, ...s.rowLabel }}>Início do plano</span>
-          <input style={s.inputRight} type="date" value={cfg.planoInicio || ""}
-            onChange={(e) => onChange({ ...cfg, planoInicio: e.target.value })} />
-        </div>
-        {atual && <div style={s.rowSub}>Você está na semana {atual} de 10.</div>}
-      </Card>
-
-      {PLANO.map((fase, fi) => {
-        const ativa = atual && atual >= fase.de && atual <= fase.ate;
-        return (
-          <div key={fase.nome}>
-            <div style={s.section}>
-              <span>Semanas {fase.de} e {fase.ate} · {fase.nome}</span>
-              {ativa && <span style={{ ...s.sectionRight, color: C.green }}>em curso</span>}
-            </div>
-            <Card i={fi} pad={0}>
-              <p style={{ ...s.foot, margin: 0, padding: "13px 16px 4px" }}>{fase.resumo}</p>
-              {fase.treinos.map((t, i) => (
-                <div key={t.id} style={{ ...s.field, borderTop: `0.5px solid ${C.sep}`, alignItems: "flex-start" }}>
-                  <span style={{ ...s.zoneBadge, background: t.z.z4 ? C.orange : t.z.z3 ? C.blue : C.green, marginTop: 2 }}>
-                    {t.id}
-                  </span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={s.rowLabel}>{cap(DIAS_NOME[t.dia])} · {t.nome}</div>
-                    <div style={{ ...s.rowSub, marginTop: 3 }}>{t.desc}</div>
-                    <div style={{ display: "flex", gap: 5, marginTop: 7 }}>
-                      {ZONES.filter((z) => t.z[z.id]).map((z) => (
-                        <span key={z.id} style={{ ...s.miniTag, background: `${z.color}22`, color: z.color }}>
-                          {t.z[z.id]} min Z{z.short}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div style={s.mono}>{totalZ(t.z)}′</div>
-                    {ativa && (
-                      <button style={{ ...s.chipBtn, marginTop: 6 }} onClick={() => onUsar(t, hoje)}>Usar</button>
-                    )}
-                  </div>
-                </div>
-              ))}
-              <div style={{ ...s.field, borderTop: `0.5px solid ${C.sep}` }}>
-                <span style={{ flex: 1, ...s.rowSub }}>Volume da semana</span>
-                <span style={s.mono}>{sum(fase.treinos, (t) => totalZ(t.z))} min</span>
-              </div>
-            </Card>
-          </div>
-        );
-      })}
-
-      <Card>
-        <p style={{ ...s.foot, marginTop: 0 }}>
-          Se dois treinos intervalados seguidos parecerem excessivamente difíceis, repita a semana anterior
-          antes de avançar. Se a razão aguda/crônica passar de 1,4, mantenha o volume da semana seguinte
-          igual ao da atual em vez de subir.
-        </p>
-      </Card>
-    </Sheet>
-  );
-}
-
 function Ajustes({ cfg, onChange, onClose }) {
   const set = (k, v) => onChange({ ...cfg, [k]: Number(v) || 0 });
   return (
@@ -1145,25 +977,6 @@ function Ajustes({ cfg, onChange, onClose }) {
         ))}
       </Card>
 
-      <SectionTitle>Plano de treino</SectionTitle>
-      <Card pad={0}>
-        <button style={{ ...s.field, borderTop: "none", width: "100%", textAlign: "left" }}
-          onClick={() => onChange({ ...cfg, planoAtivo: !cfg.planoAtivo })}>
-          <div style={{ flex: 1 }}>
-            <div style={s.rowLabel}>Plano de 10 semanas</div>
-            <div style={s.rowSub}>{cfg.planoAtivo ? "Ativo" : "Desativado"}</div>
-          </div>
-          <span style={{ ...s.toggle, background: cfg.planoAtivo ? C.green : "rgba(120,120,128,0.3)" }}>
-            <span style={{ ...s.toggleKnob, transform: cfg.planoAtivo ? "translateX(19px)" : "none" }} />
-          </span>
-        </button>
-        <div style={{ ...s.field, borderTop: `0.5px solid ${C.sep}` }}>
-          <span style={s.fieldLabel}>Início</span>
-          <input style={s.inputRight} type="date" value={cfg.planoInicio || ""}
-            onChange={(e) => onChange({ ...cfg, planoInicio: e.target.value })} />
-        </div>
-      </Card>
-
       <p style={s.foot}>
         Compare as faixas de bpm com as zonas que aparecem no seu Apple Watch e ajuste a FC máxima até
         baterem. O relógio recalcula as faixas conforme seus treinos, então elas mudam de tempos em tempos.
@@ -1176,14 +989,12 @@ function Ajustes({ cfg, onChange, onClose }) {
 
 function WeekStrip({ dias, sel, setSel }) {
   const H = 74;
-  const maxMin = Math.max(40, ...dias.map((d) => Math.max(d.total, d.plano ? totalZ(d.plano.z) : 0)));
+  const maxMin = Math.max(40, ...dias.map((d) => d.total));
 
   return (
     <div style={{ display: "flex", gap: 5, marginTop: 14 }}>
       {dias.map((d) => {
         const on = sel === d.date;
-        const planoMin = d.plano ? totalZ(d.plano.z) : 0;
-        const mostraPlano = d.total === 0 && planoMin > 0;
         return (
           <button key={d.date} onClick={() => setSel(on ? null : d.date)}
             style={{ ...s.diaCol, background: on ? "rgba(0,122,255,0.08)" : "transparent" }}>
@@ -1199,17 +1010,12 @@ function WeekStrip({ dias, sel, setSel }) {
                     <div key={z.id} style={{ height: `${(d.zones[z.id] / d.total) * 100}%`, background: z.color, width: "100%" }} />
                   ) : null))}
                 </div>
-              ) : mostraPlano ? (
-                <div style={{
-                  ...s.diaBarraPlano, height: `${(planoMin / maxMin) * H}px`,
-                  borderColor: d.plano.z.z4 ? "rgba(255,159,10,0.5)" : "rgba(48,209,88,0.45)",
-                }} />
               ) : (
                 <div style={s.diaVazio} />
               )}
             </div>
             <span style={{ ...s.diaMin, color: d.total ? C.label : C.ter }}>
-              {d.total || (mostraPlano ? planoMin : "—")}
+              {d.total || "—"}
             </span>
           </button>
         );
@@ -1752,15 +1558,6 @@ function insights(st) {
     });
   }
 
-  if (st.planoPrev >= 4) {
-    const taxa = (st.planoFeito / st.planoPrev) * 100;
-    out.push({
-      tag: `${fmt(taxa)}%`, icon: ICONS.calendario, c: taxa >= 75 ? C.green : C.orange,
-      t: taxa >= 75 ? "Boa aderência ao plano" : "Sessões do plano ficando para trás",
-      d: `Você completou ${st.planoFeito} das ${st.planoPrev} sessões previstas nos últimos 28 dias. ${taxa >= 75 ? "Nesse ritmo o plano chega ao fim como desenhado." : "Se o problema for o dia da semana e não o treino em si, vale mover a sessão em vez de pular."}`,
-    });
-  }
-
   if (st.densidade28 != null && st.densidade28ant != null) {
     const d = st.densidade28 - st.densidade28ant;
     if (Math.abs(d) >= 0.12) {
@@ -2111,7 +1908,6 @@ const s = {
     width: 15, borderRadius: 5, overflow: "hidden", display: "flex", flexDirection: "column",
     minHeight: 5, boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
   },
-  diaBarraPlano: { width: 15, borderRadius: 5, border: "1.5px dashed", minHeight: 8 },
   diaVazio: { width: 5, height: 5, borderRadius: 999, background: C.ter },
   diaMin: { fontSize: 11, fontWeight: 600, marginTop: 6, fontVariantNumeric: "tabular-nums" },
   diaDetalhe: { marginTop: 14, paddingTop: 12, borderTop: `0.5px solid ${C.sep}`, animation: "fade .2s ease" },
@@ -2119,10 +1915,6 @@ const s = {
   metaBarInner: {
     height: "100%", borderRadius: 4, background: "linear-gradient(90deg,#17B84A,#5DE86F)",
     transition: "width .7s cubic-bezier(.16,.84,.28,1)",
-  },
-  planoBadge: {
-    fontSize: 12, fontWeight: 600, color: C.blue, background: "rgba(0,122,255,0.1)",
-    padding: "5px 10px", borderRadius: 8, flexShrink: 0,
   },
 
   zoneBadge: {
