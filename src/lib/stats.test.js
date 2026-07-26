@@ -169,6 +169,61 @@ describe("agregados e recordes cobrem todo o histórico", () => {
   });
 });
 
+describe("consistência conta as semanas paradas", () => {
+  /* Regressão: as médias dividiam só pelas semanas em que houve treino, o que media
+     a intensidade de quem aparece em vez da consistência de quem treina. */
+  const paradaNoFim = () => historico(15, { vazias: [0, 1, 2, 3, 4] });
+
+  it("média de minutos por semana divide por todas as semanas fechadas", () => {
+    const st = calcularStats(paradaNoFim(), CFG);
+    /* 10 semanas de 60 min em 15 semanas de histórico; a corrente não fechou */
+    expect(st.totalCompletas).toBe(14);
+    expect(st.mediaSemanal).toBeCloseTo(600 / 14, 1);
+  });
+
+  it("média de treinos por semana divide por todas as semanas fechadas", () => {
+    const st = calcularStats(paradaNoFim(), CFG);
+    expect(st.sessoesPorSemana).toBeCloseTo(10 / 14, 2);
+  });
+
+  it("semanas na meta contam as paradas no denominador", () => {
+    const st = calcularStats(historico(15, { min: 200, vazias: [0, 1, 2, 3, 4] }), CFG);
+    expect(st.semanasNaMeta).toBe(10);
+    expect(st.totalCompletas).toBe(14);
+  });
+
+  it("sem nenhuma semana parada, a média não muda", () => {
+    const st = calcularStats(historico(10), CFG);
+    expect(st.mediaSemanal).toBeCloseTo(60, 1);
+    expect(st.sessoesPorSemana).toBeCloseTo(1, 2);
+  });
+});
+
+describe("recordes", () => {
+  it("um recorde batido na semana corrente aparece na hora", () => {
+    const ses = historico(10);
+    ses.push(sessao(iso(segundaHa(0)), 500));
+    const st = calcularStats(ses, CFG);
+    /* a semana corrente soma 60 + 500; antes ela era ignorada por não ter fechado */
+    expect(st.recordes.maiorSemana.minutos).toBe(560);
+    expect(st.recordes.maiorSemana.start).toBe(iso(segundaHa(0)));
+  });
+
+  it("FC máxima é nula quando nenhum treino registrou o campo", () => {
+    const semFc = historico(4).map((x) => ({ ...x, maxHr: null }));
+    const st = calcularStats(semFc, CFG);
+    expect(st.fcMaxReg).toBeNull();
+  });
+
+  it("FC máxima devolve o maior valor quando há algum", () => {
+    const ses = historico(4).map((x) => ({ ...x, maxHr: null }));
+    ses[0] = { ...ses[0], maxHr: 181 };
+    ses[1] = { ...ses[1], maxHr: 174 };
+    const st = calcularStats(ses, CFG);
+    expect(st.fcMaxReg).toBe(181);
+  });
+});
+
 describe("escalas de faixa", () => {
   it("razão aguda/crônica classifica pelas faixas usuais", () => {
     expect(escala(0.5, [0.8, 1.3, 1.5])).toBe("baixo");

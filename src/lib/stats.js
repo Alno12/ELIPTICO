@@ -101,6 +101,7 @@ export function calcularStats(sessions, cfg) {
         carga: sum(inWeek, trimp),
         sessoes: inWeek.length,
         z3mais: sum(inWeek, (x) => (x.zones.z3 || 0) + (x.zones.z4 || 0) + (x.zones.z5 || 0)),
+        equiv: sum(inWeek, equiv),
         zones: zw,
       });
     }
@@ -112,10 +113,14 @@ export function calcularStats(sessions, cfg) {
     });
 
     const weeks = todasSemanas.slice(-17);
-    const completas = todasSemanas.filter((w) => w.completa && w.sessoes > 0);
-    const ult8 = completas.slice(-8);
+    /* Semanas fechadas, INCLUINDO as que ficaram sem treino: as médias precisam
+       delas no denominador, senão medem a intensidade de quem aparece em vez da
+       consistência de quem treina. `comTreino` é o recorte usado só nos recordes. */
+    const fechadas = todasSemanas.filter((w) => w.completa);
+    const comTreino = todasSemanas.filter((w) => w.sessoes > 0);
+    const ult8 = fechadas.slice(-8);
     const variacaoSemanal = desvio(ult8.map((w) => w.minutos));
-    const semanasNaMeta = completas.filter((w) => w.minutos >= cfg.weeklyGoal).length;
+    const semanasNaMeta = fechadas.filter((w) => w.minutos >= cfg.weeklyGoal).length;
 
     /* zonas */
     const zoneTotals = Object.fromEntries(ZONES.map((z) => [z.id, sum(sessions, (x) => x.zones[z.id] || 0)]));
@@ -208,8 +213,7 @@ export function calcularStats(sessions, cfg) {
     /* recordes */
     const maisLonga = asc.reduce((a, b) => (b.total > a.total ? b : a));
     const maisPesada = asc.reduce((a, b) => (trimp(b) > trimp(a) ? b : a));
-    const maiorSemana = completas.length ? completas.reduce((a, b) => (b.minutos > a.minutos ? b : a)) : null;
-    const maiorZ3 = completas.length ? completas.reduce((a, b) => (b.z3mais > a.z3mais ? b : a)) : null;
+    const maiorSemana = comTreino.length ? comTreino.reduce((a, b) => (b.minutos > a.minutos ? b : a)) : null;
 
     const durs = sessions.map((x) => x.total);
     const minSemana = sum(semanaAtual, (d) => d.total);
@@ -242,23 +246,24 @@ export function calcularStats(sessions, cfg) {
       acwr: cronica > 0 ? load0 / cronica : null,
       cronica, forma, pmc, monotonia, strain,
       projetar, cargaDiariaMedia,
-      zoneTotals, grand, polar, weeks, completas, deltaHr, hrSes, pctFCR,
+      zoneTotals, grand, polar, weeks, todasSemanas, deltaHr, hrSes, pctFCR,
       densidade: dens(sessions), densidade28: dens(d28), densidade28ant: dens(d28ant),
       rpeMedia, rpeCorr, rpePontos,
       intervalados: sessions.filter((x) => x.zones.z4 + x.zones.z5 >= 4).length,
       continuos: sessions.filter((x) => x.zones.z4 + x.zones.z5 < 4).length,
       intervaloMedio, desdeUltimo, streak, maiorStreak, melhorDia, perfilDia,
       acum28: acum(0), acum28ant: acum(28),
-      variacaoSemanal, semanasNaMeta, totalCompletas: completas.length,
+      variacaoSemanal, semanasNaMeta, totalCompletas: fechadas.length,
       mediaDur: durs.reduce((a, b) => a + b, 0) / durs.length,
       maiorDur: Math.max(...durs),
-      fcMaxReg: Math.max(...sessions.map((x) => x.maxHr || 0)),
+      fcMaxReg: sessions.some((x) => x.maxHr) ? Math.max(...sessions.map((x) => x.maxHr || 0)) : null,
       mesAtual, mesAnterior, meses,
       projecaoMes: Math.round((mesAtual.minutos / diaDoMes) * diasNoMes),
-      recordes: { maisLonga, maisPesada, maiorSemana, maiorZ3 },
+      recordes: { maisLonga, maisPesada, maiorSemana },
       meta: cfg.weeklyGoal,
-      mediaSemanal: completas.length ? sum(completas, (w) => w.minutos) / completas.length : 0,
-      sessoesPorSemana: completas.length ? sum(completas, (w) => w.sessoes) / completas.length : 0,
+      mediaSemanal: fechadas.length ? sum(fechadas, (w) => w.minutos) / fechadas.length : 0,
+      sessoesPorSemana: fechadas.length ? sum(fechadas, (w) => w.sessoes) / fechadas.length : 0,
+      equivSemanalMedio: fechadas.length ? sum(fechadas, (w) => w.equiv) / fechadas.length : 0,
     };
 }
 
