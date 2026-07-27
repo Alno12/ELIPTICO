@@ -13,7 +13,7 @@ As referências apontam para **nomes de função e de componente**, não para n�
 linha. A versão anterior deste documento citava linhas, e todas apodreceram em duas
 semanas de mudanças — um nome sobrevive à edição vizinha, um número não.
 
-Estado de referência: `App.jsx` com 2.267 linhas, 161 testes em Vitest e 38 em
+Estado de referência: `App.jsx` com 2.308 linhas, 164 testes em Vitest e 42 em
 Playwright, pacote de 225 kB (70 kB comprimido).
 
 **Já resolvido** (não repetir): datas em fuso local, contador de sequência de semanas,
@@ -184,8 +184,9 @@ para app com dados; a sobrescrita de `style` pela animação derruba o teste da 
 
 **Uma armadilha que apareceu no caminho:** o Playwright estava configurado para
 reaproveitar um servidor de preview já em execução, e chegou a aprovar uma validação
-que ainda nem tinha sido compilada. `reuseExistingServer` passou a ser `false`, com
-o motivo escrito na configuração.
+que ainda nem tinha sido compilada. A suíte passou a usar porta própria (4174) e a
+não reaproveitar servidor: sempre compila o que está no disco, e nunca disputa a
+porta com o `npm run preview` do dia a dia.
 
 ### 3.2 Sem lint, formatação nem CI — RESOLVIDO
 
@@ -200,9 +201,9 @@ A formatação do Prettier **não** foi aplicada ao código existente: reescreve
 2.263 linhas só no `App.jsx`. `src/` está no `.prettierignore` com o motivo; vale
 formatar junto com o item 3.3, que já reescreve o arquivo.
 
-### 3.3 `App.jsx` com 2.267 linhas
+### 3.3 `App.jsx` com 2.308 linhas
 
-**Medido.** 2.267 linhas, contra 285 do maior módulo de `src/lib/`. Continuam no arquivo: quatro telas, duas folhas modais, doze gráficos SVG,
+**Medido.** 2.308 linhas, contra 285 do maior módulo de `src/lib/`. Continuam no arquivo: quatro telas, duas folhas modais, doze gráficos SVG,
 os componentes de interface e o objeto de estilos com 83 chaves.
 
 O arquivo **continua crescendo**: era 2.018 linhas no levantamento anterior. As
@@ -235,42 +236,28 @@ resolver junto com o item 2.1, já que os dois mexem na mesma paleta.
 
 **Esforço:** um dia, quase todo em conferência visual.
 
-### 4.2 Excluir treino não pede confirmação nem tem volta
+### 4.2 Excluir treino não tinha volta — RESOLVIDO
 
-**Leitura de código.** O botão Excluir, no detalhe do treino em `Historico`, apaga na hora. O toast que
-aparece depois é informativo e não oferece desfazer. Um toque errado numa lista densa
-apaga um registro sem recurso.
+O toast que aparece depois da exclusão passou a oferecer **Desfazer**, e dura sete
+segundos em vez de menos de três quando há ação. Desfazer restaura também a marca
+de "exemplos limpos", que a exclusão do último treino teria acionado.
 
-**Abordagem sugerida.** Desfazer no próprio toast é melhor que um diálogo de
-confirmação: não atrapalha quem acertou o toque e resolve quem errou. O estado
-anterior já está em mãos no momento da exclusão.
-
-**Esforço:** duas horas.
+Continua sem diálogo de confirmação, de propósito: confirmação atrapalha quem
+acertou o toque, e o desfazer resolve quem errou.
 
 ---
 
 ## P5 — Alcance e refinamento
 
-### 5.1 Injeção de fórmula no CSV exportado
+### 5.1 Injeção de fórmula no CSV exportado — RESOLVIDO
 
-**Medido.** As notas são escapadas para CSV — aspas duplicadas e campo entre aspas
-(na função `exportar`, em `src/App.jsx`) — mas isso resolve delimitador, não fórmula. Uma nota começando
-com `=`, `+`, `-` ou `@` continua sendo avaliada como fórmula ao abrir o arquivo no
-Excel ou no Google Sheets:
+Nota começando com `=`, `+`, `-` ou `@` sai com apóstrofo à frente, que faz Excel e
+LibreOffice tratarem o campo como texto. A importação remove o apóstrofo de volta,
+e só quando o caractere seguinte é de fato um desses — para não comer apóstrofo
+legítimo de quem escreveu "'tava puxado".
 
-```
-2026-07-26,60,0,60,0,0,0,120,60,,,,"=HYPERLINK(""http://x"",...
-```
-
-O alcance é limitado, porque o texto é digitado pelo próprio usuário no próprio
-aparelho. Vira problema quando o arquivo é compartilhado, e é o tipo de coisa que
-ferramenta de segurança automática aponta.
-
-**Abordagem sugerida.** Prefixar com apóstrofo os campos de texto que comecem com um
-desses caracteres, na exportação. A importação deve retirar o apóstrofo, e um teste de
-ida e volta trava o comportamento.
-
-**Esforço:** uma hora, contando o teste.
+Coberto por teste de navegador que exporta de verdade, lê o arquivo gerado, confere
+o apóstrofo e reimporta para checar que o texto voltou intacto.
 
 ### 5.2 O custo do motor cresce mais rápido que o histórico
 
@@ -398,13 +385,11 @@ informativa; o valor absoluto não deve ser levado ao pé da letra.
 
 ## Ordem sugerida
 
-Os itens de P1, o 2.1, o 2.4, o 3.1 e o 3.2 já saíram. Do que resta:
+Todo o P1, o 2.1, o 2.4, o 3.1, o 3.2, o 4.2 e o 5.1 já saíram. Do que resta:
 
-1. **4.2** e **5.1** — desfazer a exclusão e escapar fórmula no CSV. Baratos, e o
-   primeiro protege dado que não tem volta.
+1. **2.5** com **4.1** — cores de destaque e modo escuro na mesma passada: os dois
+   refazem a paleta e os dois pedem conferência no aparelho.
 2. **2.2** — folhas modais como diálogos de verdade.
-3. **2.5** com **4.1** — cores de destaque e modo escuro na mesma passada, já que
-   os dois refazem a paleta e os dois pedem conferência no aparelho.
-4. **2.3** — alternativa textual nos gráficos.
-5. **3.3** — separação do `App.jsx`, agora com rede de teste.
-6. **5.2**, **5.3**, **5.4** — quando houver motivo concreto.
+3. **2.3** — alternativa textual nos gráficos.
+4. **3.3** — separação do `App.jsx`, agora com rede de teste.
+5. **5.2**, **5.3**, **5.4** — quando houver motivo concreto.

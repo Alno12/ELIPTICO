@@ -295,3 +295,26 @@ describe("tempos fracionários", () => {
     expect(chave1).toBe(chave2);
   });
 });
+
+describe("proteção contra fórmula em planilha", () => {
+  const cab = "data,z1,z2,z3,z4,z5,notas";
+  const nota = (texto) => sessoesDeCsv(`${cab}\n2026-07-20,0,30,0,0,0,"${texto}"`).sessoes[0].notes;
+
+  it("remove o apóstrofo posto pela exportação", () => {
+    expect(nota("'=SOMA(A1:A9)")).toBe("=SOMA(A1:A9)");
+    expect(nota("'+55 11 99999")).toBe("+55 11 99999");
+    expect(nota("'-5 min a menos")).toBe("-5 min a menos");
+    expect(nota("'@casa")).toBe("@casa");
+  });
+
+  it("não come apóstrofo legítimo escrito pelo usuário", () => {
+    expect(nota("'bora'")).toBe("'bora'");
+    expect(nota("'tava puxado")).toBe("'tava puxado");
+    expect(nota("aspas ' no meio")).toBe("aspas ' no meio");
+  });
+
+  it("nota comum passa intacta", () => {
+    expect(nota("treino tranquilo")).toBe("treino tranquilo");
+    expect(nota("")).toBe("");
+  });
+});

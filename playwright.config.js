@@ -12,7 +12,7 @@ export default defineConfig({
   reporter: [["list"]],
 
   use: {
-    baseURL: "http://localhost:4173",
+    baseURL: "http://localhost:4174",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
@@ -30,12 +30,16 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: "npm run build && npm run preview",
-    url: "http://localhost:4173",
-    /* Nunca reaproveitar um servidor já de pé: ele pode estar servindo um build
-       anterior, e os testes passariam contra código que não é o do disco. Isso
-       chegou a acontecer aqui — a suíte aprovou uma validação que ainda nem
-       tinha sido compilada. O custo é um build por execução, cerca de um segundo. */
+    /* Porta própria, diferente da do `npm run preview` do dia a dia, e sem
+       reaproveitar servidor já de pé.
+
+       Reaproveitar chegou a fazer a suíte aprovar uma validação que ainda nem
+       tinha sido compilada, porque o servidor em execução servia o build
+       anterior. Recusar o reaproveitamento resolveu isso, mas passou a impedir
+       rodar os testes com um preview aberto. A porta separada resolve os dois:
+       sempre compila o que está no disco, e nunca disputa a porta. */
+    command: "npm run build && npm run preview -- --port 4174",
+    url: "http://localhost:4174",
     reuseExistingServer: false,
     timeout: 120_000,
   },

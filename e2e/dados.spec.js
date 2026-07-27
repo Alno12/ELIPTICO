@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import {
   test,
   expect,
@@ -50,5 +51,29 @@ test.describe("exportar e importar", () => {
     await page.reload();
     await page.getByRole("heading", { level: 1 }).first().waitFor();
     expect(await lerSessoes(page)).toHaveLength(0);
+  });
+});
+
+/* Uma nota começando com = é avaliada como fórmula ao abrir o arquivo numa
+   planilha. Só vira problema quando o arquivo é compartilhado, mas é barato de
+   evitar e é o tipo de coisa que ferramenta de segurança automática aponta. */
+test.describe("fórmula em planilha", () => {
+  test("a nota perigosa sai protegida e volta intacta", async ({ page }) => {
+    const perigosa = '=HYPERLINK("http://exemplo","clique")';
+    await abrirCom(page, [treino(diaDaSemana(1, 0), { z2: 30 }, { notes: perigosa })]);
+
+    await page.getByRole("button", { name: "Histórico", exact: true }).click();
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Exportar", exact: true }).click();
+    const caminho = await (await download).path();
+
+    const csv = readFileSync(caminho, "utf8");
+    expect(csv, "a nota deve sair com apóstrofo à frente").toContain(`"'=HYPERLINK`);
+
+    await page.setInputFiles('input[type="file"]', caminho);
+    await expect(page.getByText(/já estavam no histórico/i)).toBeVisible();
+
+    const [s] = await lerSessoes(page);
+    expect(s.notes, "o apóstrofo não pode sobrar no texto do usuário").toBe(perigosa);
   });
 });

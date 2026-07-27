@@ -40,6 +40,10 @@ function sessoesDeCsv(texto) {
     const n = Number(String(v ?? "").trim().replace(",", "."));
     return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
   };
+  /* Remove o apóstrofo que a exportação põe à frente de texto que uma planilha
+     interpretaria como fórmula. Só remove quando o que vem depois é de fato um
+     desses caracteres, para não comer apóstrofo legítimo de quem escreveu a nota. */
+  const semProtecao = (t) => (/^'[=+\-@\t\r]/.test(t) ? t.slice(1) : t);
   /* mesma regra da normalização: fora da faixa é desconhecido, não é o limite */
   const naFaixa = (n, min, max) => (n >= min && n <= max ? n : null);
   const dec = (v) => {
@@ -62,7 +66,7 @@ function sessoesDeCsv(texto) {
       avgHr: naFaixa(num(l[col("fc_media")]), FC_MIN, FC_MAX),
       maxHr: naFaixa(num(l[col("fc_max")]), FC_MIN, FC_MAX),
       rpe: naFaixa(num(l[col("rpe")]), 1, 10),
-      notes: String(l[col("notas")] ?? "").trim(),
+      notes: semProtecao(String(l[col("notas")] ?? "").trim()),
     });
   });
   return { sessoes, ignoradas };
