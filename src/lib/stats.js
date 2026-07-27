@@ -2,6 +2,27 @@ import { sum, desvio, pearson } from "./util.js";
 import { iso, dayjs, daysAgo, diffDias, mondayOf, DIAS_CURTO } from "./datas.js";
 import { ZONES, trimp, equiv } from "./treino.js";
 
+/* Janela móvel de `tamanho` dias terminando hoje. `recuo` 0 é a janela que acaba
+   hoje, 1 é a janela imediatamente anterior a ela, e assim por diante.
+
+   Não é a mesma coisa que `montarSemana`, e a diferença é o motivo de existir:
+   a semana do calendário zera toda segunda-feira, então numa segunda ela tem um
+   dia de treino e na véspera tinha sete. A janela móvel não zera nunca — sempre
+   compara sete dias contra os sete anteriores. */
+export function montarJanela(sessions, recuo = 0, tamanho = 7) {
+  const inicio = iso(daysAgo(recuo * tamanho + tamanho - 1));
+  const fim = iso(daysAgo(recuo * tamanho));
+  const dentro = sessions.filter((x) => x.date >= inicio && x.date <= fim);
+  return {
+    inicio,
+    fim,
+    minutos: sum(dentro, (x) => x.total),
+    carga: sum(dentro, trimp),
+    equiv: sum(dentro, equiv),
+    sessoes: dentro.length,
+  };
+}
+
 /* Visão de uma semana de segunda a domingo. offset 0 é a semana corrente, 1 a
    anterior, e assim por diante. Pura e independente de `calcularStats`: é o que
    permite a aba Semana navegar pelo histórico sem recomputar tudo. */
