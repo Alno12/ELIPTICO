@@ -13,17 +13,19 @@ As referências apontam para **nomes de função e de componente**, não para n�
 linha. A versão anterior deste documento citava linhas, e todas apodreceram em duas
 semanas de mudanças — um nome sobrevive à edição vizinha, um número não.
 
-Estado de referência: `App.jsx` com 2.308 linhas, 164 testes em Vitest e 42 em
-Playwright, pacote de 225 kB (70 kB comprimido).
+Estado de referência: `App.jsx` com 258 linhas (era 2.308 antes da separação),
+164 testes em Vitest e 42 em Playwright, pacote de 225 kB (70 kB comprimido).
 
 **Já resolvido** (não repetir): datas em fuso local, contador de sequência de semanas,
 contradição do "Tempo fácil", ressemeadura dos exemplos, PWA instalável e offline,
 importação de CSV, vazamento da janela de 17 semanas, extração da lógica pura e suíte
 de testes, plano de 10 semanas removido, registro em minutos e segundos, minutos
-equivalentes, médias da Consistência, recordes da semana corrente,
+equivalentes, médias da Consistência, recordes da semana corrente, separação do
+App.jsx em módulos,
 "FC máxima registrada: 0 bpm", normalização dos dados na leitura, tela de
 recuperação, faixa plausível de FC e RPE, contraste do texto neutro, testes de
-interface versionados, lint e CI.
+interface versionados, lint e CI, folhas modais com semântica de diálogo,
+confirmação antes de excluir treino.
 
 ---
 
@@ -80,27 +82,17 @@ sobre os dois fundos usados:
 Coberto por teste de navegador que calcula a razão a partir das cores realmente
 computadas na página, não das constantes do código.
 
-### 2.2 As folhas modais não são diálogos
+### 2.2 As folhas modais não eram diálogos — RESOLVIDO
 
-**Leitura de código.** O componente `Sheet`, em `src/App.jsx`, é um `<div>` dentro
-de outro `<div>`. Falta tudo o que caracteriza um diálogo:
+O `Sheet` ganhou `role="dialog"`, `aria-modal`, nome acessível, fechamento com Esc,
+armadilha de foco, bloqueio do rolamento do fundo e devolução do foco a quem abriu.
 
-- sem `role="dialog"` e sem `aria-modal`
-- sem armadilha de foco — dá para tabular para fora da folha aberta e continuar
-  navegando pelo conteúdo atrás dela
-- sem fechamento com Esc
-- sem bloqueio do rolamento do fundo
-- sem devolução do foco ao elemento que abriu a folha
-- o fundo escurecido é um `<div>` com `onClick` (`s.sheetWrap`, no mesmo componente), sem
-  `role="presentation"`, invisível para o teclado
+O comportamento saiu para um hook `useDialogo`, e a caixa de confirmação de exclusão
+foi seu primeiro cliente — duplicar armadilha de foco é como duplicar fechadura: uma
+das duas fica para trás na próxima mudança.
 
-Para quem usa teclado ou leitor de tela, abrir "Novo treino" significa perder a
-referência de onde está.
-
-**Abordagem sugerida.** Trocar por `<dialog>` nativo, que resolve foco, Esc e camada
-de sobreposição de graça, ou aplicar as marcações e o gerenciamento de foco à mão.
-
-**Esforço:** meio dia.
+Coberto por 5 testes de navegador, incluindo um que aperta Tab quarenta vezes e
+confirma que o foco não escapou.
 
 ### 2.3 Dezesseis gráficos sem alternativa textual
 
@@ -201,21 +193,28 @@ A formatação do Prettier **não** foi aplicada ao código existente: reescreve
 2.263 linhas só no `App.jsx`. `src/` está no `.prettierignore` com o motivo; vale
 formatar junto com o item 3.3, que já reescreve o arquivo.
 
-### 3.3 `App.jsx` com 2.308 linhas
+### 3.3 `App.jsx` com 2.308 linhas — RESOLVIDO
 
-**Medido.** 2.308 linhas, contra 285 do maior módulo de `src/lib/`. Continuam no arquivo: quatro telas, duas folhas modais, doze gráficos SVG,
-os componentes de interface e o objeto de estilos com 83 chaves.
+Separado em `estilos.js`, `armazenamento.js`, `ui/`, `telas/` e `graficos/`, com um
+arquivo por gráfico. O `App.jsx` passou de 2.308 para 258 linhas e ficou só com o
+estado e a troca de abas; o maior arquivo agora é uma tela de 272 linhas.
 
-O arquivo **continua crescendo**: era 2.018 linhas no levantamento anterior. As
-funcionalidades novas e a tela de recuperação foram todas para dentro dele.
+`FC_MIN` e `FC_MAX` estavam declarados duas vezes, no `App.jsx` e em `lib/sessoes.js`;
+a separação unificou.
 
-**Abordagem sugerida.** `charts/`, `ui/`, `screens/`, `styles.js`.
+**Como foi verificado.** É refatoração pura: nada devia mudar na tela. Capturei 18
+telas antes, separei, capturei de novo e comparei byte a byte — as 18 idênticas.
+Antes disso confirmei que as capturas eram determinísticas, rodando duas vezes sem a
+mudança, senão a comparação não provaria nada.
 
-O pré-requisito honesto não é o teste unitário da camada pura, que já existe — é o
-item 3.1. Sem teste de interface, essa separação é refatoração às cegas justamente na
-parte do código que não tem cobertura nenhuma. Fazer 3.1 antes.
+O lint foi decisivo: apontou 14 símbolos indefinidos ou não usados que meu script de
+extração errou, incluindo falsos positivos por casar `equiv` dentro da palavra
+"equivalentes". O build passava com todos eles.
 
-**Esforço:** um dia.
+**A formatação automática continua de fora**, ao contrário do que este documento
+previa. Aplicar o Prettier reescreveu 466 linhas do `stats.js`, que nem fazia parte
+do trabalho, e explodiu a tabela de `ZONES` de cinco linhas alinhadas para quarenta
+e seis. O motivo está escrito no `.prettierignore`.
 
 ---
 
@@ -330,8 +329,8 @@ Achados menores, todos verificados por contagem de ocorrências:
 - **Três campos de `calcularStats` nunca lidos**: `delta`, `densidade` e `maiorDur`, no objeto devolvido por `calcularStats`. Zero referências em `App.jsx` e zero nos
   testes. `densidade28` e `mediaDur`, que são parecidos, esses sim são usados.
 - **Grade de referência dos gráficos** repetida quase idêntica em `CumulativeChart`,
-  `LoadChart` e `IntensityChart`, cerca de seis linhas cada. Candidata a um
-  componente `<Grade>`, junto com o item 3.3.
+  `LoadChart` e `IntensityChart`, cerca de seis linhas cada. Agora que cada gráfico
+  tem arquivo próprio, extrair um componente `<Grade>` ficou trivial.
 
 **Esforço:** minutos, exceto o último.
 
@@ -385,11 +384,11 @@ informativa; o valor absoluto não deve ser levado ao pé da letra.
 
 ## Ordem sugerida
 
-Todo o P1, o 2.1, o 2.4, o 3.1, o 3.2, o 4.2 e o 5.1 já saíram. Do que resta:
+Já saíram: todo o P1, o 2.1, o 2.4, o 3.1, o 3.2, o 3.3, o 4.2 e o 5.1.
 
-1. **2.5** com **4.1** — cores de destaque e modo escuro na mesma passada: os dois
-   refazem a paleta e os dois pedem conferência no aparelho.
-2. **2.2** — folhas modais como diálogos de verdade.
-3. **2.3** — alternativa textual nos gráficos.
-4. **3.3** — separação do `App.jsx`, agora com rede de teste.
-5. **5.2**, **5.3**, **5.4** — quando houver motivo concreto.
+Restam **2.2**, **2.3**, **2.5** e **4.1** — acessibilidade e modo escuro, os quatro
+avaliados e deixados de lado por ora — e **5.2**, **5.3** e **5.4**, que só valem
+quando houver motivo concreto.
+
+A limpeza pontual ficou barata com a separação e pode ir junto do próximo trabalho
+que tocar em gráficos.

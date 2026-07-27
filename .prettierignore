@@ -5,11 +5,12 @@ playwright-report/
 public/sw.js
 package-lock.json
 
-# O código existente não foi formatado pelo Prettier: fazê-lo agora reescreveria
-# 2.263 linhas só no App.jsx, tornando qualquer revisão impossível e apagando o
-# histórico de autoria. A formatação vale quando o arquivo for separado em módulos
-# (item 3.3 do MELHORIAS.md), que já vai reescrevê-lo de qualquer forma.
+# O Prettier não é aplicado ao código-fonte. Tentado durante a separação do
+# App.jsx: ele reescreveu 466 linhas do stats.js, que nem fazia parte do
+# trabalho, e explodiu a tabela de ZONES de cinco linhas alinhadas e legíveis
+# para quarenta e seis. Formatação automática aqui custa mais do que rende.
 src/
+
 
 # a prosa dos documentos é quebrada à mão, por legibilidade
 *.md
