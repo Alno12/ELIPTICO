@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { Component, useState, useEffect, useMemo, useRef, useCallback } from "react";
 
 import { sum, fmt, clamp, cap, minSeg, deMinSeg, mmss } from "./lib/util.js";
 import { DIAS_CURTO, DIAS_NOME, iso, dayjs, daysAgo, diffDias, mondayOf, longDate, shortDate } from "./lib/datas.js";
 import { ZONES, trimp, totalZ, equiv, equivZ, seed, faixa } from "./lib/treino.js";
 import { chaveSessao, sessoesDeCsv } from "./lib/csv.js";
 import { calcularStats, escala, escalaFacil, montarSemana } from "./lib/stats.js";
+import { normalizarSessoes } from "./lib/sessoes.js";
 
 /* ================= constantes ================= */
 
@@ -54,7 +55,7 @@ function topRounded(x, y, w, h, r) {
 
 /* ================= app ================= */
 
-export default function App() {
+function App() {
   const [sessions, setSessions] = useState([]);
   const [cfg, setCfg] = useState(DEFAULT_CFG);
   const [tab, setTab] = useState("resumo");
@@ -72,19 +73,29 @@ export default function App() {
         conf = { ...DEFAULT_CFG, ...JSON.parse((await store.get(KEY_CFG)).value) };
       } catch { /* padrão */ }
 
-      let data = null;
+      let bruto = null;
       try {
-        data = JSON.parse((await store.get(KEY)).value);
+        bruto = JSON.parse((await store.get(KEY)).value);
       } catch { /* primeira abertura */ }
-      if (!Array.isArray(data)) data = [];
+
+      /* nada do armazenamento chega ao motor sem passar pela normalização */
+      let { sessoes, descartadas } = normalizarSessoes(bruto);
+      if (descartadas) {
+        /* regrava já limpo, senão o aviso reaparece a cada abertura */
+        store.set(KEY, JSON.stringify(sessoes)).catch(() => {});
+        setToast(descartadas === 1
+          ? "1 registro ilegível foi descartado"
+          : `${descartadas} registros ilegíveis foram descartados`);
+      }
+
       /* semeia exemplos só enquanto o usuário nunca limpou nada; depois disso,
          histórico vazio é um estado legítimo e não deve ser sobrescrito */
-      if (!data.length && !conf.demoLimpo) {
-        data = seed();
-        store.set(KEY, JSON.stringify(data)).catch(() => {});
+      if (!sessoes.length && !conf.demoLimpo) {
+        sessoes = seed();
+        store.set(KEY, JSON.stringify(sessoes)).catch(() => {});
       }
       setCfg(conf);
-      setSessions(data);
+      setSessions(sessoes);
       setReady(true);
     })();
   }, []);
@@ -1664,10 +1675,12 @@ function insights(st) {
 
 /* ================= interface ================= */
 
-function Shell({ children, scroller, onScroll, compact, titulo }) {
+/* Reset e animações usados por toda a interface. Fica num componente próprio
+   porque a tela de recuperação renderiza fora do Shell — sem isto ela sairia
+   com a fonte serifada do navegador e os botões com a borda padrão. */
+function EstilosBase() {
   return (
-    <div style={s.page}>
-      <style>{`
+    <style>{`
         *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
         input,textarea,button{font:inherit;color:inherit}
         button{cursor:pointer;border:none;background:none}
@@ -1684,6 +1697,13 @@ function Shell({ children, scroller, onScroll, compact, titulo }) {
         .card{animation:rise .5s cubic-bezier(.16,.84,.28,1) both}
         @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
       `}</style>
+  );
+}
+
+function Shell({ children, scroller, onScroll, compact, titulo }) {
+  return (
+    <div style={s.page}>
+      <EstilosBase />
 
       <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
         <defs>
@@ -1906,6 +1926,124 @@ function TabBar({ tab, setTab, onPlus }) {
   );
 }
 
+
+/* ================= rede final ================= */
+
+/* A normalização na leitura cobre os dados malformados que conhecemos. Este
+   limite cobre o resto: qualquer falha de renderização que escape dela. Sem ele,
+   o React desmonta a árvore e sobra uma página em branco — e como os dados vivem
+   no localStorage de um PWA, o usuário não tem por onde recuperar, a não ser
+   apagando os dados do site e perdendo todo o histórico. */
+class LimiteDeErro extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { erro: null };
+  }
+
+  static getDerivedStateFromError(erro) {
+    return { erro };
+  }
+
+  render() {
+    if (!this.state.erro) return this.props.children;
+    return <TelaDeRecuperacao erro={this.state.erro} />;
+  }
+}
+
+function TelaDeRecuperacao({ erro }) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [baixou, setBaixou] = useState(false);
+
+  /* Copia o conteúdo bruto do armazenamento, sem interpretar nada: é justamente
+     o dado que não deu para interpretar que precisa ser preservado. */
+  const baixarCopia = () => {
+    try {
+      const copia = {
+        exportadoEm: new Date().toISOString(),
+        motivo: String(erro?.message || erro || "falha desconhecida"),
+        sessoes: localStorage.getItem(KEY),
+        config: localStorage.getItem(KEY_CFG),
+      };
+      const blob = new Blob([JSON.stringify(copia, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `eliptico-copia-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      setBaixou(true);
+    } catch {
+      setBaixou(false);
+    }
+  };
+
+  const limpar = () => {
+    try {
+      localStorage.removeItem(KEY);
+      localStorage.removeItem(KEY_CFG);
+    } catch { /* nada a fazer */ }
+    location.reload();
+  };
+
+  return (
+    <div style={s.recWrap}>
+      <EstilosBase />
+      <div style={s.recCard}>
+        <span style={{ ...s.iconBadge, background: C.orange, marginBottom: 14 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff"
+            strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+          </svg>
+        </span>
+
+        <h1 style={s.recTitulo}>O app não conseguiu abrir</h1>
+        <p style={s.recTexto}>
+          Alguma coisa nos dados guardados impediu a tela de carregar. Seus treinos
+          continuam no aparelho — baixe uma cópia antes de limpar, por segurança.
+        </p>
+
+        <button style={s.primary} onClick={baixarCopia}>
+          {baixou ? "Baixar cópia de novo" : "Baixar cópia dos dados"}
+        </button>
+        <button style={s.secondary} onClick={() => location.reload()}>
+          Tentar de novo
+        </button>
+
+        {confirmando ? (
+          <>
+            <p style={{ ...s.recTexto, marginTop: 18, marginBottom: 10 }}>
+              Isso apaga todos os treinos deste aparelho e não tem volta.
+              {baixou ? " Você já baixou uma cópia." : " Você ainda não baixou uma cópia."}
+            </p>
+            <button style={s.destructive} onClick={limpar}>
+              Confirmar e apagar tudo
+            </button>
+            <button style={s.secondary} onClick={() => setConfirmando(false)}>
+              Cancelar
+            </button>
+          </>
+        ) : (
+          <button style={{ ...s.secondary, color: C.red }} onClick={() => setConfirmando(true)}>
+            Limpar os dados e recomeçar
+          </button>
+        )}
+
+        {erro?.message && (
+          <p style={s.recDetalhe}>Detalhe técnico: {String(erro.message).slice(0, 200)}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function AppComRecuperacao() {
+  return (
+    <LimiteDeErro>
+      <App />
+    </LimiteDeErro>
+  );
+}
+
+
 /* ================= estilos ================= */
 
 const font = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif';
@@ -2083,4 +2221,21 @@ const s = {
   grabber: { width: 36, height: 5, borderRadius: 3, background: "rgba(60,60,67,0.28)", margin: "8px auto 0" },
   sheetHead: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px 8px" },
   done: { color: C.blue, fontSize: 17, fontWeight: 600 },
+
+  recWrap: {
+    minHeight: "100dvh", background: C.bg, display: "flex", alignItems: "center",
+    justifyContent: "center", padding: 20,
+    /* renderiza fora do Shell, então precisa declarar a fonte por conta própria */
+    fontFamily: font, color: C.label,
+  },
+  recCard: {
+    background: C.card, borderRadius: 22, padding: "26px 22px 22px", maxWidth: 380, width: "100%",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+  },
+  recTitulo: { fontSize: 24, fontWeight: 700, letterSpacing: "-0.5px", margin: "0 0 8px" },
+  recTexto: { fontSize: 14.5, color: C.sec, lineHeight: 1.5, margin: "0 0 18px" },
+  recDetalhe: {
+    fontSize: 11.5, color: C.ter, lineHeight: 1.45, marginTop: 18, marginBottom: 0,
+    wordBreak: "break-word",
+  },
 };
