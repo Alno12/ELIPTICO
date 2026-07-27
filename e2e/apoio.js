@@ -74,6 +74,10 @@ export const lerCfg = (page) =>
 
 /* ---------- teste com vigilância de erros ---------- */
 
+/* Para os testes que provocam erro de propósito: o React registra no console ao
+   acionar um limite de erro, então a vigilância abaixo reprovaria por construção. */
+export const testeBruto = base;
+
 /* Qualquer erro de runtime ou no console reprova o teste, mesmo que as asserções
    passem. Foi assim que apareceu a violação das regras de hooks: a tela quebrava
    sem que nenhuma asserção de conteúdo notasse. */
