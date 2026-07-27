@@ -14,8 +14,12 @@ const C = {
   card: "#FFFFFF",
   sep: "rgba(60,60,67,0.13)",
   label: "#000000",
-  sec: "rgba(60,60,67,0.6)",
-  ter: "rgba(60,60,67,0.28)",
+  /* 0.725 é a menor opacidade que passa 4.5:1 (AA, texto normal) sobre os dois
+     fundos usados: o card branco e o cinza da página. Em 0.6 dava 3.44:1. */
+  sec: "rgba(60,60,67,0.725)",
+  /* rótulo de eixo e marcador de dia vazio: 0.565 leva a 3:1, o limiar de
+     elemento gráfico. Em 0.28 dava 1.67:1, quase invisível. */
+  ter: "rgba(60,60,67,0.565)",
   fill: "rgba(120,120,128,0.11)",
   blue: "#007AFF",
   red: "#FF375F",
@@ -24,6 +28,10 @@ const C = {
   purple: "#BF5AF2",
   indigo: "#5E5CE6",
 };
+
+/* faixa plausível de frequência cardíaca; fora disso é engano de digitação */
+const FC_MIN = 30;
+const FC_MAX = 250;
 
 const KEY = "eliptico:v5:sessoes";
 const KEY_CFG = "eliptico:v5:config";
@@ -915,8 +923,21 @@ function RegistrarSheet({ cfg, inicial, onSave, onClose }) {
 
   const campo = (chave, valor) => { setErr(null); setF({ ...f, [chave]: valor }); };
 
+  const fora = (v, min, max) => v !== "" && (n(v) < min || n(v) > max);
+
   const submit = () => {
     if (total === 0) { setErr("Informe o tempo em pelo menos uma zona."); return; }
+    /* um 1500 digitado por engano achatava o gráfico de eficiência cardíaca e
+       fazia o percentual da reserva exibir 590%; recusar é mais honesto que
+       corrigir em silêncio para um valor que o usuário não escolheu */
+    if (fora(f.avgHr, FC_MIN, FC_MAX) || fora(f.maxHr, FC_MIN, FC_MAX)) {
+      setErr(`A frequência cardíaca deve ficar entre ${FC_MIN} e ${FC_MAX} bpm.`);
+      return;
+    }
+    if (fora(f.rpe, 1, 10)) {
+      setErr("O esforço percebido vai de 1 a 10.");
+      return;
+    }
     onSave({
       // eslint-disable-next-line react-hooks/purity -- submit só roda em clique, nunca no render
       id: editando ? inicial.id : `s-${Date.now()}`,
@@ -925,7 +946,7 @@ function RegistrarSheet({ cfg, inicial, onSave, onClose }) {
       total,
       avgHr: n(f.avgHr) || null,
       maxHr: n(f.maxHr) || null,
-      rpe: clamp(n(f.rpe), 0, 10) || null,
+      rpe: n(f.rpe) || null,
       notes: f.notes.trim(),
     });
   };
@@ -937,7 +958,8 @@ function RegistrarSheet({ cfg, inicial, onSave, onClose }) {
       <Card pad={0}>
         <div style={{ ...s.field, borderTop: "none" }}>
           <span style={s.fieldLabel}>Data</span>
-          <input style={s.inputRight} type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} />
+          <input style={s.inputRight} type="date" aria-label="Data do treino"
+            value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} />
         </div>
       </Card>
 
@@ -979,14 +1001,17 @@ function RegistrarSheet({ cfg, inicial, onSave, onClose }) {
 
       <SectionTitle>Frequência cardíaca e esforço</SectionTitle>
       <Card pad={0}>
-        <FieldNum first label="FC média" unit="bpm" value={f.avgHr} onChange={(v) => setF({ ...f, avgHr: v })} />
-        <FieldNum label="FC máxima" unit="bpm" value={f.maxHr} onChange={(v) => setF({ ...f, maxHr: v })} />
-        <FieldNum label="Esforço percebido" unit="1–10" value={f.rpe} onChange={(v) => setF({ ...f, rpe: v })} />
+        <FieldNum first label="FC média" unit="bpm" min={FC_MIN} max={FC_MAX}
+          value={f.avgHr} onChange={(v) => campo("avgHr", v)} />
+        <FieldNum label="FC máxima" unit="bpm" min={FC_MIN} max={FC_MAX}
+          value={f.maxHr} onChange={(v) => campo("maxHr", v)} />
+        <FieldNum label="Esforço percebido" unit="1–10" min={0} max={10}
+          value={f.rpe} onChange={(v) => campo("rpe", v)} />
       </Card>
 
       <SectionTitle>Notas</SectionTitle>
       <Card>
-        <textarea style={s.textarea} rows={3} placeholder="Como foi o treino"
+        <textarea style={s.textarea} rows={3} placeholder="Como foi o treino" aria-label="Notas do treino"
           value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} />
       </Card>
 
@@ -1863,10 +1888,11 @@ const Line = ({ label, value, sub, first }) => (
   </div>
 );
 
-const FieldNum = ({ label, unit, value, onChange, first }) => (
+const FieldNum = ({ label, unit, value, onChange, first, min, max }) => (
   <div style={{ ...s.field, borderTop: first ? "none" : `0.5px solid ${C.sep}` }}>
     <span style={s.fieldLabel}>{label}</span>
     <input style={s.inputNum} type="number" inputMode="decimal" placeholder={unit}
+      aria-label={`${label} em ${unit}`} min={min} max={max}
       value={value} onChange={(e) => onChange(e.target.value)} />
   </div>
 );
@@ -1900,7 +1926,7 @@ function TabBar({ tab, setTab, onPlus }) {
   const Btn = ({ i }) => {
     const on = tab === i.id;
     return (
-      <button onClick={() => setTab(i.id)} style={s.tabBtn} aria-current={on}>
+      <button onClick={() => setTab(i.id)} style={s.tabBtn} aria-current={on ? "page" : undefined}>
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
           stroke={on ? C.red : C.sec} strokeWidth={on ? 2.4 : 1.85} strokeLinecap="round" strokeLinejoin="round">
           <path d={i.d} />
@@ -2235,7 +2261,7 @@ const s = {
   recTitulo: { fontSize: 24, fontWeight: 700, letterSpacing: "-0.5px", margin: "0 0 8px" },
   recTexto: { fontSize: 14.5, color: C.sec, lineHeight: 1.5, margin: "0 0 18px" },
   recDetalhe: {
-    fontSize: 11.5, color: C.ter, lineHeight: 1.45, marginTop: 18, marginBottom: 0,
+    fontSize: 11.5, color: C.sec, lineHeight: 1.45, marginTop: 18, marginBottom: 0,
     wordBreak: "break-word",
   },
 };

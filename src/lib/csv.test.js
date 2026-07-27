@@ -140,11 +140,16 @@ banana,5,10,0,0,0
     expect(() => sessoesDeCsv("")).toThrow("arquivo sem linhas de dados");
   });
 
-  it("RPE fora de faixa (99) é limitado a 10", () => {
-    const csv = `data,z1,z2,z3,z4,z5,rpe
-2026-03-09,1,2,0,0,0,99`;
-    const { sessoes } = sessoesDeCsv(csv);
-    expect(sessoes[0].rpe).toBe(10);
+  /* Antes o 99 virava 10. Passou a virar nulo: um 10 inventado pareceria um
+     esforço máximo que a pessoa nunca relatou, e desconhecido é mais honesto. */
+  it("RPE fora de faixa vira desconhecido, não o limite", () => {
+    const csv = `data,z1,z2,z3,z4,z5,rpe\n2026-07-20,0,30,0,0,0,99`;
+    expect(sessoesDeCsv(csv).sessoes[0].rpe).toBeNull();
+  });
+
+  it("RPE dentro da faixa é preservado", () => {
+    const csv = `data,z1,z2,z3,z4,z5,rpe\n2026-07-20,0,30,0,0,0,7`;
+    expect(sessoesDeCsv(csv).sessoes[0].rpe).toBe(7);
   });
 
   it("RPE negativo é limitado a 0", () => {

@@ -32,7 +32,11 @@ export default defineConfig({
   webServer: {
     command: "npm run build && npm run preview",
     url: "http://localhost:4173",
-    reuseExistingServer: !process.env.CI,
+    /* Nunca reaproveitar um servidor já de pé: ele pode estar servindo um build
+       anterior, e os testes passariam contra código que não é o do disco. Isso
+       chegou a acontecer aqui — a suíte aprovou uma validação que ainda nem
+       tinha sido compilada. O custo é um build por execução, cerca de um segundo. */
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

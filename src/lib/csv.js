@@ -1,5 +1,6 @@
-import { clamp } from "./util.js";
+
 import { dayjs } from "./datas.js";
+import { FC_MIN, FC_MAX } from "./sessoes.js";
 import { ZONES, totalZ } from "./treino.js";
 
 /* \uFEFF é o BOM que o Excel põe no início do arquivo. Escrito como escape porque
@@ -39,6 +40,8 @@ function sessoesDeCsv(texto) {
     const n = Number(String(v ?? "").trim().replace(",", "."));
     return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
   };
+  /* mesma regra da normalização: fora da faixa é desconhecido, não é o limite */
+  const naFaixa = (n, min, max) => (n >= min && n <= max ? n : null);
   const dec = (v) => {
     const n = Number(String(v ?? "").trim().replace(",", "."));
     return Number.isFinite(n) && n > 0 ? n : 0;
@@ -56,9 +59,9 @@ function sessoesDeCsv(texto) {
     sessoes.push({
       id: `imp-${Date.now().toString(36)}-${k}`,
       date, zones, total,
-      avgHr: num(l[col("fc_media")]) || null,
-      maxHr: num(l[col("fc_max")]) || null,
-      rpe: clamp(num(l[col("rpe")]), 0, 10) || null,
+      avgHr: naFaixa(num(l[col("fc_media")]), FC_MIN, FC_MAX),
+      maxHr: naFaixa(num(l[col("fc_max")]), FC_MIN, FC_MAX),
+      rpe: naFaixa(num(l[col("rpe")]), 1, 10),
       notes: String(l[col("notas")] ?? "").trim(),
     });
   });
