@@ -1,14 +1,40 @@
 import { useState, useRef } from "react";
-import { sum, fmt, mmss } from "../lib/util.js";
+import { sum, fmt, cap, mmss } from "../lib/util.js";
 import { iso, dayjs, shortDate } from "../lib/datas.js";
 import { ZONES, trimp, equiv } from "../lib/treino.js";
 import { C, s } from "../estilos.js";
 import { LargeTitle, SectionTitle, Card, Empty, Confirmacao } from "../ui/estrutura.jsx";
 
+/* Mesmo desenho da seta de semana, na aba Semana: um app não deve ter dois jeitos
+   de navegar no tempo. */
+const SetaMes = ({ rotulo, ativa, proxima, onClick }) => (
+  <button
+    onClick={ativa ? onClick : undefined}
+    disabled={!ativa}
+    aria-label={rotulo}
+    style={{ ...s.setaSemana, opacity: ativa ? 1 : 0.35, cursor: ativa ? "pointer" : "default" }}
+  >
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={ativa ? C.blue : C.sec}
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d={proxima ? "M9 5l7 7-7 7" : "M15 5l-7 7 7 7"} />
+    </svg>
+  </button>
+);
+
 function Historico({ sessions, onEdit, onDelete, onClearDemo, onReseed, onImport, onToast }) {
   const [open, setOpen] = useState(null);
   /* o treino aguardando confirmação de exclusão, ou null */
   const [aExcluir, setAExcluir] = useState(null);
+  /* null significa "o mês mais recente que tem treino" */
+  const [mesAberto, setMesAberto] = useState(null);
   const arquivo = useRef(null);
 
   const inputArquivo = (
@@ -101,27 +127,66 @@ function Historico({ sessions, onEdit, onDelete, onClearDemo, onReseed, onImport
     }
   };
 
+  /* Meses do mais recente para o mais antigo, e os treinos de cada mês por data
+     decrescente. Antes a tela só agrupava e confiava na ordem do armazenamento:
+     bastava um caminho de escrita que não ordenasse para a lista sair embaralhada. */
   const meses = {};
   sessions.forEach((x) => {
     (meses[x.date.slice(0, 7)] ||= []).push(x);
   });
+  const chaves = Object.keys(meses).sort((a, b) => b.localeCompare(a));
+  chaves.forEach((k) => meses[k].sort((x, y) => y.date.localeCompare(x.date)));
+
+  /* o mês escolhido some ao excluir o último treino dele; nesse caso cai para o
+     mais recente que ainda existe */
+  const mes = chaves.includes(mesAberto) ? mesAberto : chaves[0];
+  const iMes = chaves.indexOf(mes);
+  const lista = meses[mes] || [];
+
   const nDemo = sessions.filter((x) => x.demo).length;
 
   return (
     <>
       <LargeTitle title="Histórico" action={{ label: "Exportar", onClick: exportar }} />
-      {Object.entries(meses).map(([mes, list], mi) => (
-        <div key={mes}>
-          <div style={s.section}>
-            <span>
-              {dayjs(mes + "-01").toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
-            </span>
-            <span style={s.sectionRight}>
-              {fmt(sum(list, (x) => x.total))} min · {list.length} treinos
-            </span>
+
+      {chaves.length > 0 && (
+        <>
+          <div style={s.navMes}>
+            <SetaMes
+              rotulo="Mês anterior"
+              ativa={iMes < chaves.length - 1}
+              onClick={() => {
+                setMesAberto(chaves[iMes + 1]);
+                setOpen(null);
+              }}
+            />
+            <div style={s.navMesCentro}>
+              <div data-testid="mes-rotulo" style={s.navMesTitulo}>
+                {cap(
+                  dayjs(mes + "-01").toLocaleDateString("pt-BR", {
+                    month: "long",
+                    year: "numeric",
+                  }),
+                )}
+              </div>
+              <div style={s.rowSub}>
+                {fmt(sum(lista, (x) => x.total))} min · {lista.length}{" "}
+                {lista.length === 1 ? "treino" : "treinos"}
+              </div>
+            </div>
+            <SetaMes
+              rotulo="Próximo mês"
+              proxima
+              ativa={iMes > 0}
+              onClick={() => {
+                setMesAberto(chaves[iMes - 1]);
+                setOpen(null);
+              }}
+            />
           </div>
-          <Card i={mi} pad={0}>
-            {list.map((x, i) => (
+
+          <Card pad={0}>
+            {lista.map((x, i) => (
               <div key={x.id}>
                 <button
                   style={{ ...s.sesRow, borderTop: i ? `0.5px solid ${C.sep}` : "none" }}
@@ -197,8 +262,8 @@ function Historico({ sessions, onEdit, onDelete, onClearDemo, onReseed, onImport
               </div>
             ))}
           </Card>
-        </div>
-      ))}
+        </>
+      )}
 
       <SectionTitle>Backup</SectionTitle>
       <Card>

@@ -241,8 +241,27 @@ O toast que aparece depois da exclusão passou a oferecer **Desfazer**, e dura s
 segundos em vez de menos de três quando há ação. Desfazer restaura também a marca
 de "exemplos limpos", que a exclusão do último treino teria acionado.
 
-Continua sem diálogo de confirmação, de propósito: confirmação atrapalha quem
-acertou o toque, e o desfazer resolve quem errou.
+Depois veio também a **caixa de confirmação** antes de excluir, a pedido. As duas
+proteções convivem de propósito: a caixa evita o toque errado, o desfazer cobre a
+confirmação dada no automático. O foco começa em Cancelar, para que Enter no susto
+não apague nada.
+
+### 4.3 O Histórico era uma lista única e sem ordem garantida — RESOLVIDO
+
+Eram dois problemas no mesmo lugar. A tela mostrava todos os treinos de uma vez —
+com os dados de exemplo, 19 semanas em rolagem contínua — e agrupava por mês sem
+ordenar coisa alguma, confiando na ordem em que o armazenamento devolvia. Bastava
+um caminho de escrita que não ordenasse para a lista sair embaralhada, e a
+importação de CSV é exatamente um desses caminhos.
+
+Agora o Histórico abre no mês mais recente e navega com setas laterais, do mesmo
+desenho das setas da aba Semana — um app não deve ter dois jeitos de navegar no
+tempo. Os meses saem do mais recente para o mais antigo e os treinos de cada mês
+por data decrescente, ordenados na própria tela. Excluir o último treino de um mês
+faz cair para o mês existente mais próximo, em vez de deixar a tela vazia.
+
+Coberto por 6 testes de navegador, um deles semeando treinos fora de ordem de
+propósito para travar a regressão de ordenação.
 
 ---
 
@@ -384,11 +403,11 @@ informativa; o valor absoluto não deve ser levado ao pé da letra.
 
 ## Ordem sugerida
 
-Já saíram: todo o P1, o 2.1, o 2.4, o 3.1, o 3.2, o 3.3, o 4.2 e o 5.1.
+Já saíram: todo o P1, o 2.1, o 2.2, o 2.4, o 3.1, o 3.2, o 3.3, o 4.2, o 4.3 e o 5.1.
 
-Restam **2.2**, **2.3**, **2.5** e **4.1** — acessibilidade e modo escuro, os quatro
-avaliados e deixados de lado por ora — e **5.2**, **5.3** e **5.4**, que só valem
-quando houver motivo concreto.
+Restam **2.3**, **2.5** e **4.1** — alternativa textual dos gráficos, contraste das
+cores de destaque e modo escuro, os três avaliados e deixados de lado por ora — e
+**5.2**, **5.3** e **5.4**, que só valem quando houver motivo concreto.
 
 A limpeza pontual ficou barata com a separação e pode ir junto do próximo trabalho
 que tocar em gráficos.
