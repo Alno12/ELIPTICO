@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { minSeg, deMinSeg, mmss } from "./util.js";
+import {
+  minSeg,
+  deMinSeg,
+  mmss,
+  soDigitos,
+  tempoDeDigitos,
+  minutosDeDigitos,
+  digitosDeMinutos,
+  arrumarDigitos,
+} from "./util.js";
 import { equiv, equivZ, PESO_EQUIV } from "./treino.js";
 
 describe("deMinSeg", () => {
@@ -137,5 +146,79 @@ describe("PESO_EQUIV", () => {
     expect(PESO_EQUIV.z3).toBe(1);
     expect(PESO_EQUIV.z4).toBe(2);
     expect(PESO_EQUIV.z5).toBe(2);
+  });
+});
+
+/* O campo de tempo digitado da direita para a esquerda, como num cronômetro. */
+describe("campo de tempo por dígitos", () => {
+  it("empurra os dígitos da direita para a esquerda", () => {
+    const passos = ["1", "12", "120", "1205"];
+    expect(passos.map((p) => tempoDeDigitos(soDigitos(p)))).toEqual([
+      "0:01",
+      "0:12",
+      "1:20",
+      "12:05",
+    ]);
+  });
+
+  /* O caso que reprovou o primeiro desenho: normalizando a cada tecla, 83 s
+     virava 1:23, os dígitos guardados passavam a 123, e o 0 seguinte dava 12:30
+     em vez de 8:30. Todo tempo cujo caminho passe por mais de 59 s ficaria
+     impossível de digitar. */
+  it("aceita passar de 59 s no meio do caminho", () => {
+    const passos = ["8", "83", "830"];
+    expect(passos.map((p) => tempoDeDigitos(soDigitos(p)))).toEqual(["0:08", "0:83", "8:30"]);
+    expect(minutosDeDigitos("830")).toBeCloseTo(8.5, 10);
+  });
+
+  it("1205 são 12 minutos e 5 segundos", () => {
+    expect(minutosDeDigitos("1205")).toBeCloseTo(12 + 5 / 60, 10);
+  });
+
+  it("ignora o que não for algarismo", () => {
+    expect(soDigitos("12:05")).toBe("1205");
+    expect(soDigitos("12 min 05 s")).toBe("1205");
+  });
+
+  it("descarta zeros à frente, que não mudam o valor", () => {
+    expect(soDigitos("0012")).toBe("12");
+    expect(minutosDeDigitos(soDigitos("0012"))).toBeCloseTo(12 / 60, 10);
+  });
+
+  it("guarda no máximo cinco algarismos, mantendo os últimos", () => {
+    expect(soDigitos("1234567")).toBe("34567");
+    /* 345 min e 67 s, que ao normalizar viram 346:07 */
+    expect(mmss(minutosDeDigitos("34567"))).toBe("346:07");
+    expect(tempoDeDigitos("34567")).toBe("345:67");
+  });
+
+  it("campo vazio é zero, não NaN", () => {
+    expect(minutosDeDigitos("")).toBe(0);
+    expect(digitosDeMinutos(0)).toBe("");
+  });
+
+  /* A volta pelo valor é o que impede o campo de mostrar um tempo impossível. */
+  it("ao sair do campo, segundos acima de 59 viram minuto", () => {
+    expect(arrumarDigitos("1275")).toBe("1315");
+    expect(tempoDeDigitos("1315")).toBe("13:15");
+    /* e quem parar em "0:83" sai com 1:23 */
+    expect(tempoDeDigitos(arrumarDigitos("83"))).toBe("1:23");
+  });
+
+  it("apagar um algarismo faz o resto deslizar de volta", () => {
+    /* o usuário vê "12:05", apaga um caractere e sobra "12:0" */
+    expect(arrumarDigitos("12:0")).toBe("120");
+    expect(tempoDeDigitos("120")).toBe("1:20");
+  });
+
+  it("ida e volta entre minutos e dígitos preserva o valor", () => {
+    for (const min of [0.5, 8.5, 12 + 5 / 60, 45, 99 + 59 / 60]) {
+      expect(minutosDeDigitos(digitosDeMinutos(min))).toBeCloseTo(min, 10);
+    }
+  });
+
+  it("reabrir um treino gravado devolve o mesmo tempo no campo", () => {
+    expect(digitosDeMinutos(8.5)).toBe("830");
+    expect(tempoDeDigitos(digitosDeMinutos(8.5))).toBe("8:30");
   });
 });

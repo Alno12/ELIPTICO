@@ -6,7 +6,7 @@ import { test, expect, abrirCom, lerSessoes } from "./apoio.js";
 test.describe("faixa da frequência cardíaca", () => {
   const preencherTreino = async (page) => {
     await page.getByRole("button", { name: "Registrar treino" }).click();
-    await page.getByLabel("Zona 2, minutos").fill("30");
+    await page.getByLabel("Zona 2, tempo").pressSequentially("3000");
   };
 
   test("recusa FC absurda em vez de gravar", async ({ page }) => {
