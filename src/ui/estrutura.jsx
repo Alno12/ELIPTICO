@@ -76,7 +76,7 @@ function Shell({ children, scroller, onScroll, compact, titulo }) {
         <div style={{ ...s.compactBar, opacity: compact ? 1 : 0, pointerEvents: "none" }}>
           <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.3px" }}>{titulo}</span>
         </div>
-        <div ref={scroller} onScroll={onScroll} style={s.scroll}>
+        <div ref={scroller} onScroll={onScroll} style={s.scroll} data-rolagem="app">
           {children}
         </div>
       </div>
@@ -103,10 +103,22 @@ function useDialogo(caixa, onClose, focoInicial = 0) {
   useEffect(() => {
     const abriuCom = document.activeElement;
     const alvos = focaveis(caixa.current);
-    (alvos[focoInicial] || alvos[0] || caixa.current)?.focus();
+    /* `preventScroll` porque neste instante a folha ainda está fora da tela, no
+       começo da animação: sem ele o navegador rola os contêineres de cima para
+       revelar o que acabou de receber o foco, e a tela de trás dá um solavanco
+       no meio da abertura. */
+    (alvos[focoInicial] || alvos[0] || caixa.current)?.focus({ preventScroll: true });
 
-    const rolagemAntes = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    /* Quem rola neste app é a div do conteúdo, não o `body` — o `body` nem tem
+       barra de rolagem. Travar `body.style.overflow` não travava nada, e a tela
+       de trás continuava correndo por baixo da folha. */
+    const fundo = document.querySelector('[data-rolagem="app"]');
+    /* mexe na mesma propriedade que o React declara — `overflowY`, não o atalho
+       `overflow`. Limpar o atalho apagaria também o `overflow-y: auto` do React,
+       que não o reescreve porque para ele nada mudou: a div deixaria de rolar e
+       perderia a posição ao fechar a folha. */
+    const rolagemAntes = fundo?.style.overflowY;
+    if (fundo) fundo.style.overflowY = "hidden";
 
     const aoTeclar = (e) => {
       if (e.key === "Escape") {
@@ -131,7 +143,7 @@ function useDialogo(caixa, onClose, focoInicial = 0) {
 
     return () => {
       document.removeEventListener("keydown", aoTeclar);
-      document.body.style.overflow = rolagemAntes;
+      if (fundo) fundo.style.overflowY = rolagemAntes || "";
       /* devolve o foco a quem abriu, senão o teclado recomeça do topo da página */
       abriuCom?.focus?.();
     };
@@ -150,6 +162,7 @@ function Sheet({ children, onClose, titulo, esquerda, direita, rotulo }) {
 
   return (
     <div style={s.sheetWrap} onClick={onClose} role="presentation">
+      <div style={s.sheetFundo} data-fundo-folha />
       <div
         ref={caixa}
         style={s.sheet}
@@ -165,7 +178,7 @@ function Sheet({ children, onClose, titulo, esquerda, direita, rotulo }) {
           <strong style={{ fontSize: 17, letterSpacing: "-0.3px" }}>{titulo}</strong>
           <span style={{ width: 74, textAlign: "right" }}>{direita}</span>
         </div>
-        <div style={{ padding: "0 16px 34px", overflowY: "auto" }}>{children}</div>
+        <div style={s.sheetConteudo}>{children}</div>
       </div>
     </div>
   );

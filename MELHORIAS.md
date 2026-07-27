@@ -91,8 +91,10 @@ O comportamento saiu para um hook `useDialogo`, e a caixa de confirmação de ex
 foi seu primeiro cliente — duplicar armadilha de foco é como duplicar fechadura: uma
 das duas fica para trás na próxima mudança.
 
-Coberto por 5 testes de navegador, incluindo um que aperta Tab quarenta vezes e
+Coberto por 7 testes de navegador, incluindo um que aperta Tab quarenta vezes e
 confirma que o foco não escapou.
+
+O "bloqueio do rolamento do fundo" acima, porém, não bloqueava nada: ver 4.4.
 
 ### 2.3 Dezesseis gráficos sem alternativa textual
 
@@ -263,6 +265,36 @@ faz cair para o mês existente mais próximo, em vez de deixar a tela vazia.
 Coberto por 6 testes de navegador, um deles semeando treinos fora de ordem de
 propósito para travar a regressão de ordenação.
 
+### 4.4 A abertura das folhas estava errada em quatro pontos — RESOLVIDO
+
+Relatado como "a janela sobe meio esquisita e a rolagem fica estranha". Eram quatro
+defeitos somados, todos medidos no navegador antes e depois:
+
+1. **A folha subia translúcida.** O escurecimento estava no contêiner que a contém,
+   com `fade` aplicado ao conjunto — então a folha herdava a transparência e dava
+   para ler a tela de trás através do formulário durante toda a subida. O escuro
+   virou uma camada própria, irmã da folha.
+2. **A folha e o escurecimento estavam dessincronizados.** `.34s` numa curva muito
+   adiantada contra `.25s` noutra: a folha parava por volta dos 90 ms com o fundo
+   ainda a 44% do escuro, que continuava escurecendo sozinho por mais 160 ms. Duração
+   e curva agora saem de duas constantes únicas.
+3. **O travamento do rolamento travava o elemento errado.** O código punha
+   `overflow: hidden` no `body`, que neste app nunca teve barra de rolagem — quem rola
+   é a div do conteúdo. A tela de trás continuava correndo por baixo da folha. Pior:
+   havia um teste dizendo cobrir isso, e ele media o `body` — passava sem proteger
+   nada.
+4. **O gesto vazava da folha para a tela de trás.** Chegando ao topo do formulário, o
+   resto do movimento rolava o fundo: a folha parecia travada e o que se mexia era a
+   página atrás. Resolvido com `overscroll-behavior: contain`.
+
+Junto foi `interactive-widget=resizes-content` no viewport: sem isso, o teclado cobre
+o rodapé da folha de registro — que tem doze campos numéricos — e o botão Salvar fica
+inalcançável. Vale no Chrome do Android; o Safari do iOS ignora a diretiva.
+
+Coberto por 3 testes de navegador que medem geometria de verdade — a posição da folha
+quadro a quadro contra a opacidade do escuro, a opacidade efetiva da folha
+multiplicada por todos os ancestrais, e o rolamento do fundo antes, durante e depois.
+
 ---
 
 ## P5 — Alcance e refinamento
@@ -403,7 +435,7 @@ informativa; o valor absoluto não deve ser levado ao pé da letra.
 
 ## Ordem sugerida
 
-Já saíram: todo o P1, o 2.1, o 2.2, o 2.4, o 3.1, o 3.2, o 3.3, o 4.2, o 4.3 e o 5.1.
+Já saíram: todo o P1, o 2.1, o 2.2, o 2.4, o 3.1, o 3.2, o 3.3, o 4.2, o 4.3, o 4.4 e o 5.1.
 
 Restam **2.3**, **2.5** e **4.1** — alternativa textual dos gráficos, contraste das
 cores de destaque e modo escuro, os três avaliados e deixados de lado por ora — e
