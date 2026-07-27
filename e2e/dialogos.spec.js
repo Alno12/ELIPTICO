@@ -114,6 +114,64 @@ test.describe("folha modal como diálogo", () => {
     expect(await estado(), "o fundo não voltou como estava").toEqual(antes);
   });
 
+  /* O foco só pode ir para dentro da folha depois que ela chega ao lugar. Focar
+     algo ainda fora da tela faz o navegador rolar os contêineres de cima para
+     revelar o elemento; `preventScroll` deveria impedir, mas o Safari do iOS
+     ignora a opção (WebKit 236584) e o contêiner que ele rolava tem
+     `overflow: hidden` — o dedo não desfaz, e o deslocamento fica. */
+  test("o foco espera a folha parar de se mexer", async ({ page }) => {
+    await abrirCom(page, dois());
+    await page.getByRole("button", { name: "Registrar treino" }).click();
+
+    const amostras = [];
+    for (let i = 0; i < 12; i++) {
+      amostras.push(
+        await page.evaluate(() => {
+          const d = document.querySelector('[role="dialog"]');
+          if (!d) return null;
+          return {
+            focoDentro: d.contains(document.activeElement),
+            parada: d.getAnimations().every((a) => a.playState === "finished"),
+          };
+        }),
+      );
+      await page.waitForTimeout(30);
+    }
+
+    const cedoDemais = amostras.filter((a) => a && a.focoDentro && !a.parada);
+    expect(cedoDemais, "o foco entrou na folha antes de ela chegar ao lugar").toHaveLength(0);
+    /* e não pode simplesmente nunca focar */
+    await expect
+      .poll(async () =>
+        page.evaluate(() =>
+          document.querySelector('[role="dialog"]').contains(document.activeElement),
+        ),
+      )
+      .toBe(true);
+  });
+
+  /* No iOS o alvo do gesto é escolhido quando o dedo encosta, então declarar
+     `touch-action` só na hora de abrir chega tarde. Tem de estar no estilo. */
+  test("as áreas que não rolam recusam o arrasto por estilo, não por script", async ({ page }) => {
+    await abrirCom(page, dois());
+    await abrirFolha(page);
+
+    const tato = await page.evaluate(() => {
+      const pega = (sel) => getComputedStyle(document.querySelector(sel)).touchAction;
+      const d = document.querySelector('[role="dialog"]');
+      return {
+        fundoEscuro: pega("[data-fundo-folha]"),
+        cabecalho: getComputedStyle(d.children[1]).touchAction,
+        conteudo: getComputedStyle(d.lastElementChild).touchAction,
+      };
+    });
+
+    expect(tato.fundoEscuro).toBe("none");
+    expect(tato.cabecalho).toBe("none");
+    /* o conteúdo é a exceção: ele precisa rolar */
+    expect(tato.conteudo, "o formulário deixaria de rolar").not.toBe("none");
+  });
+
   test("a folha e o escurecimento do fundo chegam juntos", async ({ page }) => {
     await abrirCom(page, dois());
     await page.getByRole("button", { name: "Registrar treino" }).click();

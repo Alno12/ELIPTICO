@@ -126,27 +126,49 @@ const focaveis = (raiz) =>
 function useDialogo(caixa, onClose, focoInicial = 0) {
   useEffect(() => {
     const abriuCom = document.activeElement;
-    const alvos = focaveis(caixa.current);
-    /* `preventScroll` porque neste instante a caixa ainda está fora da tela, no
-       começo da animação: sem ele o navegador rola os contêineres de cima para
-       revelar o que acabou de receber o foco. O Safari do iOS honra a opção há
-       poucas versões, então o que garante mesmo é a caixa não ser descendente
-       do rolador — revelar algo fora dele não tem o que rolar. */
-    (alvos[focoInicial] || alvos[0] || caixa.current)?.focus({ preventScroll: true });
 
-    /* Trava o rolador por `touch-action`, e não por `overflow: hidden`.
+    /* O foco espera a caixa chegar ao lugar.
 
-       O `overflow` muda a geometria: um elemento rolado a 700 px que deixa de
-       ser rolável tem a posição grampeada no topo, e ao reabrir a rolagem a tela
-       já não está onde estava — é o salto que aparecia no iPhone ao abrir a
-       folha. `touch-action: none` não mexe em layout nem em posição de rolagem;
-       só diz ao navegador para não arrastar este elemento com o dedo.
+       Focar algo que ainda está fora da tela faz o navegador rolar os
+       contêineres de cima para revelar o elemento. `preventScroll` deveria
+       impedir isso, mas o Safari do iOS ignora a opção — WebKit 236584, aberto
+       até hoje. E o contêiner que ele rolava aqui é o quadro do telefone, que
+       tem `overflow: hidden`: o dedo não desfaz, então o deslocamento fica.
+       Era o salto ao abrir a folha, que só acontecia no iPhone.
 
-       Isto é a segunda linha de defesa. A primeira é estrutural: as camadas
+       Esperar a animação terminar remove a causa em vez de tentar suprimir o
+       efeito: com a caixa já no lugar, não há o que revelar. */
+    let cancelado = false;
+    const focar = () => {
+      if (cancelado || !caixa.current) return;
+      const alvos = focaveis(caixa.current);
+      (alvos[focoInicial] || alvos[0] || caixa.current)?.focus({ preventScroll: true });
+    };
+    const animacoes = caixa.current?.getAnimations?.() ?? [];
+    if (animacoes.length) {
+      Promise.all(animacoes.map((a) => a.finished.catch(() => {}))).then(focar);
+    } else {
+      focar();
+    }
+
+    /* Trava o rolador de duas formas, porque nenhuma delas basta sozinha no iOS.
+
+       `overflow: hidden` desabilita o arrasto direto e preserva a posição de
+       rolagem — uma caixa `hidden` continua sendo um scroll container, só não
+       responde ao dedo. `touch-action: none` cobre o caminho de toque de forma
+       explícita.
+
+       Ambas são a segunda linha de defesa. A primeira é estrutural: as camadas
        modais ficam fora do rolador, então o gesto nem chega aqui. */
     const fundo = document.querySelector('[data-rolagem="app"]');
-    const tatoAntes = fundo?.style.touchAction;
-    if (fundo) fundo.style.touchAction = "none";
+    const antes = fundo && { overflowY: fundo.style.overflowY, touchAction: fundo.style.touchAction };
+    if (fundo) {
+      /* `overflowY`, não o atalho `overflow`: limpar o atalho apagaria também o
+         `overflow-y: auto` que o React declara, e ele não o reescreve porque para
+         ele nada mudou — a div ficaria sem rolar depois de fechar a folha. */
+      fundo.style.overflowY = "hidden";
+      fundo.style.touchAction = "none";
+    }
 
     const aoTeclar = (e) => {
       if (e.key === "Escape") {
@@ -170,8 +192,12 @@ function useDialogo(caixa, onClose, focoInicial = 0) {
     document.addEventListener("keydown", aoTeclar);
 
     return () => {
+      cancelado = true;
       document.removeEventListener("keydown", aoTeclar);
-      if (fundo) fundo.style.touchAction = tatoAntes || "";
+      if (fundo) {
+        fundo.style.overflowY = antes.overflowY || "";
+        fundo.style.touchAction = antes.touchAction || "";
+      }
       /* devolve o foco a quem abriu, senão o teclado recomeça do topo da página */
       abriuCom?.focus?.();
     };

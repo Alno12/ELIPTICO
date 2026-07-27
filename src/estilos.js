@@ -56,7 +56,6 @@ const s = {
     height: "100%",
     overflowY: "auto",
     padding: "0 16px",
-    WebkitOverflowScrolling: "touch",
   },
   compactBar: {
     position: "absolute",
@@ -500,11 +499,16 @@ const s = {
      curva muito adiantada e .25s noutra: a folha chegava ao lugar por volta dos
      90 ms com o fundo ainda a 44% do escuro, que continuava escurecendo sozinho
      por mais 160 ms. Eram dois movimentos onde devia haver um. */
+  /* `touchAction: none` declarado no estilo, e não aplicado ao abrir: no iOS o
+     alvo do gesto é escolhido quando o dedo encosta, então quem chega depois
+     chega tarde. Vale para toda superfície da folha que não rola — o fundo
+     escurecido, a alça e o cabeçalho. Nunca para o conteúdo, que precisa rolar. */
   sheetFundo: {
     position: "absolute",
     inset: 0,
     background: "rgba(0,0,0,0.34)",
     animation: `fade ${DUR_FOLHA} ${CURVA_FOLHA}`,
+    touchAction: "none",
   },
   sheet: {
     width: "100%",
@@ -520,12 +524,13 @@ const s = {
     position: "relative",
   },
   sheetConteudo: {
-    padding: "0 16px 34px",
+    /* instalado na tela de início a folha encosta no indicador de home; 34 px
+       continuam valendo onde não há área segura a respeitar */
+    padding: "0 16px max(34px, env(safe-area-inset-bottom))",
     overflowY: "auto",
     /* Ao chegar ao topo do formulário, o resto do gesto ia rolar a tela de trás:
        a folha parecia travada e o fundo é que se mexia. */
     overscrollBehavior: "contain",
-    WebkitOverflowScrolling: "touch",
   },
   grabber: {
     width: 36,
@@ -533,6 +538,7 @@ const s = {
     borderRadius: 3,
     background: "rgba(60,60,67,0.28)",
     margin: "8px auto 0",
+    touchAction: "none",
   },
   navMes: {
     display: "flex", alignItems: "center", gap: 10, padding: "6px 4px 10px",
@@ -540,7 +546,7 @@ const s = {
   navMesCentro: { flex: 1, minWidth: 0, textAlign: "center" },
   navMesTitulo: { fontSize: 15.5, fontWeight: 600, letterSpacing: "-0.2px" },
   confirmWrap: {
-    position: "absolute", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.4)",
+    position: "absolute", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.4)", touchAction: "none",
     display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
     animation: "fade .18s ease",
   },
@@ -555,6 +561,7 @@ const s = {
     alignItems: "center",
     justifyContent: "space-between",
     padding: "12px 16px 8px",
+    touchAction: "none",
   },
   done: { color: C.blue, fontSize: 17, fontWeight: 600 },
 
