@@ -2,7 +2,14 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+    <!-- `interactive-widget=resizes-content`: ao abrir o teclado, a área da página
+         encolhe em vez de o teclado cobrir o que já estava desenhado. Sem isso a
+         folha de registro, que tem doze campos numéricos, fica com o rodapé e o
+         botão Salvar embaixo do teclado, sem como alcançá-los. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, interactive-widget=resizes-content"
+    />
     <meta name="theme-color" content="#F2F2F7" />
     <meta name="description" content="Registro de treinos aeróbicos por zona de frequência cardíaca, com análise de carga e tendências." />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -16,6 +23,10 @@
     <style>
       html, body, #root { height: 100%; margin: 0; }
       body { background: #DEDEE4; }
+      /* Impede o efeito elástico da página inteira. Instalado na tela de início,
+         sem barra de endereço, esse arrasto não revela nada — só descola o app
+         da moldura e denuncia que é uma página. */
+      html, body { overscroll-behavior: none; }
     </style>
   </head>
   <body>

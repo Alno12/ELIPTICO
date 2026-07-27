@@ -28,6 +28,12 @@ const C = {
 
 const font = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif';
 
+/* Duração e curva da abertura das folhas modais, num lugar só para não voltarem
+   a divergir. A curva desacelera no fim, sem o arranque quase instantâneo da
+   anterior. */
+const DUR_FOLHA = ".34s";
+const CURVA_FOLHA = "cubic-bezier(.32,.72,0,1)";
+
 const s = {
   page: {
     background: "#DEDEE4",
@@ -50,7 +56,6 @@ const s = {
     height: "100%",
     overflowY: "auto",
     padding: "0 16px",
-    WebkitOverflowScrolling: "touch",
   },
   compactBar: {
     position: "absolute",
@@ -475,24 +480,57 @@ const s = {
     padding: "2px 2px",
     marginLeft: 2,
   },
+  /* O escurecimento saiu daqui para uma camada própria. Estava neste contêiner,
+     com `fade` aplicado ao conjunto — e como a folha é filha dele, ela subia
+     translúcida: dava para ler a tela de trás através do formulário durante toda
+     a animação. A folha agora é opaca desde o primeiro quadro, e só o escuro
+     aparece aos poucos. */
   sheetWrap: {
     position: "absolute",
     inset: 0,
-    background: "rgba(0,0,0,0.34)",
     zIndex: 40,
     display: "flex",
     alignItems: "flex-end",
     justifyContent: "center",
-    animation: "fade .25s ease",
+    /* o gesto que sobra na folha não pode virar rolagem da tela de trás */
+    overscrollBehavior: "contain",
+  },
+  /* Mesma duração e mesma curva da folha, de propósito. Antes eram .34s numa
+     curva muito adiantada e .25s noutra: a folha chegava ao lugar por volta dos
+     90 ms com o fundo ainda a 44% do escuro, que continuava escurecendo sozinho
+     por mais 160 ms. Eram dois movimentos onde devia haver um. */
+  /* `touchAction: none` declarado no estilo, e não aplicado ao abrir: no iOS o
+     alvo do gesto é escolhido quando o dedo encosta, então quem chega depois
+     chega tarde. Vale para toda superfície da folha que não rola — o fundo
+     escurecido, a alça e o cabeçalho. Nunca para o conteúdo, que precisa rolar. */
+  sheetFundo: {
+    position: "absolute",
+    inset: 0,
+    background: "rgba(0,0,0,0.34)",
+    animation: `fade ${DUR_FOLHA} ${CURVA_FOLHA}`,
+    touchAction: "none",
   },
   sheet: {
     width: "100%",
     maxHeight: "94%",
     background: C.bg,
     borderRadius: "14px 14px 0 0",
-    animation: "sheetIn .34s cubic-bezier(.16,.84,.28,1)",
+    animation: `sheetIn ${DUR_FOLHA} ${CURVA_FOLHA}`,
     display: "flex",
     flexDirection: "column",
+    /* sem isto os cantos arredondados não recortam o conteúdo que rola por baixo */
+    overflow: "hidden",
+    /* posicionada para ficar acima da camada escura, que é irmã e vem antes */
+    position: "relative",
+  },
+  sheetConteudo: {
+    /* instalado na tela de início a folha encosta no indicador de home; 34 px
+       continuam valendo onde não há área segura a respeitar */
+    padding: "0 16px max(34px, env(safe-area-inset-bottom))",
+    overflowY: "auto",
+    /* Ao chegar ao topo do formulário, o resto do gesto ia rolar a tela de trás:
+       a folha parecia travada e o fundo é que se mexia. */
+    overscrollBehavior: "contain",
   },
   grabber: {
     width: 36,
@@ -500,6 +538,7 @@ const s = {
     borderRadius: 3,
     background: "rgba(60,60,67,0.28)",
     margin: "8px auto 0",
+    touchAction: "none",
   },
   navMes: {
     display: "flex", alignItems: "center", gap: 10, padding: "6px 4px 10px",
@@ -507,7 +546,7 @@ const s = {
   navMesCentro: { flex: 1, minWidth: 0, textAlign: "center" },
   navMesTitulo: { fontSize: 15.5, fontWeight: 600, letterSpacing: "-0.2px" },
   confirmWrap: {
-    position: "absolute", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.4)",
+    position: "absolute", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.4)", touchAction: "none",
     display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
     animation: "fade .18s ease",
   },
@@ -522,6 +561,7 @@ const s = {
     alignItems: "center",
     justifyContent: "space-between",
     padding: "12px 16px 8px",
+    touchAction: "none",
   },
   done: { color: C.blue, fontSize: 17, fontWeight: 600 },
 

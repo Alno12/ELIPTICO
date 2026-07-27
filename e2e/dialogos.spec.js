@@ -42,17 +42,215 @@ test.describe("folha modal como diálogo", () => {
     expect(dentro, "o foco escapou da folha").toBe(true);
   });
 
-  test("o fundo para de rolar enquanto a folha está aberta", async ({ page }) => {
+  /* A defesa principal contra a tela de trás rolar é estrutural: nenhuma camada
+     modal pode nascer dentro da div que rola. Enquanto nascia, todo arrasto sobre
+     a folha subia a cadeia de ancestrais, encontrava o rolador e mexia a página
+     atrás — que foi o que apareceu no iPhone. `overscroll-behavior` não cobre
+     isso: ele só contém o gesto que começa dentro de algo rolável e chega ao fim,
+     e o arrasto que começa no cabeçalho da folha ou no fundo escurecido nunca
+     passa por lá. */
+  test("nenhuma camada modal nasce dentro do que rola", async ({ page }) => {
     await abrirCom(page, dois());
-    const antes = await page.evaluate(() => getComputedStyle(document.body).overflow);
     await abrirFolha(page);
-    const durante = await page.evaluate(() => getComputedStyle(document.body).overflow);
+
+    const dentro = await page.evaluate(() => {
+      const rolador = document.querySelector('[data-rolagem="app"]');
+      return {
+        folha: rolador.contains(document.querySelector('[role="dialog"]')),
+        barra: rolador.contains(document.querySelector("nav")),
+      };
+    });
+    expect(dentro.folha, "a folha está dentro do rolador").toBe(false);
+    expect(dentro.barra, "a barra de abas está dentro do rolador").toBe(false);
+  });
+
+  test("a confirmação de exclusão também nasce fora do que rola", async ({ page }) => {
+    await abrirCom(page, dois());
+    await page.getByRole("button", { name: "Histórico", exact: true }).click();
+    await page.locator("button").filter({ hasText: "TRIMP" }).first().click();
+    await page.getByRole("button", { name: "Excluir" }).click();
+    await expect(page.getByRole("alertdialog")).toBeVisible();
+
+    /* Esta é levantada de dentro de uma tela, não pelo App — o caso que uma
+       correção só no App deixaria passar. */
+    const dentro = await page.evaluate(() =>
+      document
+        .querySelector('[data-rolagem="app"]')
+        .contains(document.querySelector('[role="alertdialog"]')),
+    );
+    expect(dentro, "a confirmação está dentro do rolador").toBe(false);
+  });
+
+  /* Este teste já existiu numa versão que media `document.body`, e passava sem
+     proteger nada: quem rola no app é a div do conteúdo, e o `body` nunca teve
+     barra de rolagem. */
+  test("o fundo para de rolar, e volta exatamente onde estava", async ({ page }) => {
+    await abrirCom(page, dois());
+    const estado = () =>
+      page.evaluate(() => {
+        const el = document.querySelector('[data-rolagem="app"]');
+        return {
+          touchAction: getComputedStyle(el).touchAction,
+          overflowY: getComputedStyle(el).overflowY,
+          scrollTop: el.scrollTop,
+        };
+      });
+
+    await page.evaluate(() =>
+      document.querySelector('[data-rolagem="app"]').scrollTo({ top: 700 }),
+    );
+    await expect.poll(async () => (await estado()).scrollTop).toBeGreaterThan(0);
+    const antes = await estado();
+
+    await abrirFolha(page);
+    const durante = await estado();
+    expect(durante.touchAction, "o dedo ainda arrasta o fundo").toBe("none");
+    /* Travar por `overflow` grampeia a posição no topo: era o salto que aparecia
+       ao abrir a folha no iPhone. A posição tem de sobreviver ao travamento. */
+    expect(durante.scrollTop, "a tela de trás saltou ao travar").toBe(antes.scrollTop);
+
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    const depois = await page.evaluate(() => getComputedStyle(document.body).overflow);
+    expect(await estado(), "o fundo não voltou como estava").toEqual(antes);
+  });
 
-    expect(durante).toBe("hidden");
-    expect(depois).toBe(antes);
+  /* O foco só pode ir para dentro da folha depois que ela chega ao lugar. Focar
+     algo ainda fora da tela faz o navegador rolar os contêineres de cima para
+     revelar o elemento; `preventScroll` deveria impedir, mas o Safari do iOS
+     ignora a opção (WebKit 236584) e o contêiner que ele rolava tem
+     `overflow: hidden` — o dedo não desfaz, e o deslocamento fica. */
+  test("o foco espera a folha parar de se mexer", async ({ page }) => {
+    await abrirCom(page, dois());
+    await page.getByRole("button", { name: "Registrar treino" }).click();
+
+    const amostras = [];
+    for (let i = 0; i < 12; i++) {
+      amostras.push(
+        await page.evaluate(() => {
+          const d = document.querySelector('[role="dialog"]');
+          if (!d) return null;
+          return {
+            focoDentro: d.contains(document.activeElement),
+            parada: d.getAnimations().every((a) => a.playState === "finished"),
+          };
+        }),
+      );
+      await page.waitForTimeout(30);
+    }
+
+    const cedoDemais = amostras.filter((a) => a && a.focoDentro && !a.parada);
+    expect(cedoDemais, "o foco entrou na folha antes de ela chegar ao lugar").toHaveLength(0);
+    /* e não pode simplesmente nunca focar */
+    await expect
+      .poll(async () =>
+        page.evaluate(() =>
+          document.querySelector('[role="dialog"]').contains(document.activeElement),
+        ),
+      )
+      .toBe(true);
+  });
+
+  /* No iOS o alvo do gesto é escolhido quando o dedo encosta, então declarar
+     `touch-action` só na hora de abrir chega tarde. Tem de estar no estilo. */
+  test("as áreas que não rolam recusam o arrasto por estilo, não por script", async ({ page }) => {
+    await abrirCom(page, dois());
+    await abrirFolha(page);
+
+    const tato = await page.evaluate(() => {
+      const pega = (sel) => getComputedStyle(document.querySelector(sel)).touchAction;
+      const d = document.querySelector('[role="dialog"]');
+      return {
+        fundoEscuro: pega("[data-fundo-folha]"),
+        cabecalho: getComputedStyle(d.children[1]).touchAction,
+        conteudo: getComputedStyle(d.lastElementChild).touchAction,
+      };
+    });
+
+    expect(tato.fundoEscuro).toBe("none");
+    expect(tato.cabecalho).toBe("none");
+    /* o conteúdo é a exceção: ele precisa rolar */
+    expect(tato.conteudo, "o formulário deixaria de rolar").not.toBe("none");
+  });
+
+  test("a folha e o escurecimento do fundo chegam juntos", async ({ page }) => {
+    await abrirCom(page, dois());
+    await page.getByRole("button", { name: "Registrar treino" }).click();
+
+    /* Eram durações e curvas diferentes: a folha parava por volta dos 90 ms com o
+       fundo ainda em 44% do escuro, que continuava a escurecer sozinho por mais
+       160 ms. A abertura parecia dois movimentos em vez de um. */
+    const quadros = [];
+    for (let i = 0; i < 8; i++) {
+      quadros.push(
+        await page.evaluate(() => {
+          const d = document.querySelector('[role="dialog"]');
+          const escuro = document.querySelector("[data-fundo-folha]");
+          const alvo = window.innerHeight - d.getBoundingClientRect().height;
+          const caminho = d.getBoundingClientRect().top - alvo;
+          return {
+            /* 1 = ainda embaixo de tudo, 0 = no lugar */
+            restante: caminho / d.getBoundingClientRect().height,
+            escuro: Number(getComputedStyle(escuro).opacity),
+            /* Opacidade efetiva da folha: a dela vezes a de cada ancestral. Ler
+               só `getComputedStyle(d).opacity` não serve — dá 1 mesmo quando é o
+               contêiner de cima que está esmaecendo, que era exatamente o caso. */
+            opacidadeDaFolha: (() => {
+              let o = 1;
+              for (let el = d; el && el !== document.body; el = el.parentElement) {
+                o *= Number(getComputedStyle(el).opacity);
+              }
+              return o;
+            })(),
+          };
+        }),
+      );
+      await page.waitForTimeout(45);
+    }
+
+    /* enquanto a folha ainda tem caminho a percorrer, o fundo não pode já estar
+       no escuro final, nem o contrário */
+    for (const q of quadros) {
+      const andado = 1 - q.restante;
+      expect(
+        Math.abs(andado - q.escuro),
+        `folha em ${andado.toFixed(2)} e escuro em ${q.escuro.toFixed(2)}`,
+      ).toBeLessThan(0.25);
+      expect(q.opacidadeDaFolha, "a folha ficou translúcida durante a subida").toBe(1);
+    }
+  });
+
+  test("o formulário rola até o fim sem arrastar a tela de trás", async ({ page }) => {
+    await abrirCom(page, dois());
+    await abrirFolha(page);
+    /* a folha ainda está subindo quando aparece; rolar no meio do trajeto acerta
+       o lugar errado da tela */
+    await page.waitForFunction(() =>
+      document
+        .querySelector('[role="dialog"]')
+        .getAnimations()
+        .every((a) => a.playState === "finished"),
+    );
+
+    const conteudo = () =>
+      page.evaluate(() => {
+        const c = document.querySelector('[role="dialog"]').lastElementChild;
+        return {
+          scrollTop: c.scrollTop,
+          rolavel: c.scrollHeight > c.clientHeight,
+          contido: getComputedStyle(c).overscrollBehaviorY,
+        };
+      });
+
+    expect((await conteudo()).rolavel, "o formulário deveria ter o que rolar").toBe(true);
+    expect((await conteudo()).contido, "o gesto vazaria para a tela de trás").toBe("contain");
+
+    await page.mouse.move(200, 500);
+    await page.mouse.wheel(0, 2000);
+    await expect.poll(async () => (await conteudo()).scrollTop).toBeGreaterThan(0);
+    await expect(page.getByRole("button", { name: "Salvar treino" })).toBeVisible();
+
+    await page.mouse.wheel(0, -2000);
+    await expect.poll(async () => (await conteudo()).scrollTop).toBe(0);
   });
 
   test("o foco volta para quem abriu a folha", async ({ page }) => {

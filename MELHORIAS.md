@@ -91,8 +91,10 @@ O comportamento saiu para um hook `useDialogo`, e a caixa de confirmação de ex
 foi seu primeiro cliente — duplicar armadilha de foco é como duplicar fechadura: uma
 das duas fica para trás na próxima mudança.
 
-Coberto por 5 testes de navegador, incluindo um que aperta Tab quarenta vezes e
+Coberto por 7 testes de navegador, incluindo um que aperta Tab quarenta vezes e
 confirma que o foco não escapou.
+
+O "bloqueio do rolamento do fundo" acima, porém, não bloqueava nada: ver 4.4.
 
 ### 2.3 Dezesseis gráficos sem alternativa textual
 
@@ -263,6 +265,90 @@ faz cair para o mês existente mais próximo, em vez de deixar a tela vazia.
 Coberto por 6 testes de navegador, um deles semeando treinos fora de ordem de
 propósito para travar a regressão de ordenação.
 
+### 4.4 A abertura das folhas estava errada em quatro pontos — RESOLVIDO
+
+Relatado como "a janela sobe meio esquisita e a rolagem fica estranha". Eram quatro
+defeitos somados, todos medidos no navegador antes e depois:
+
+1. **A folha subia translúcida.** O escurecimento estava no contêiner que a contém,
+   com `fade` aplicado ao conjunto — então a folha herdava a transparência e dava
+   para ler a tela de trás através do formulário durante toda a subida. O escuro
+   virou uma camada própria, irmã da folha.
+2. **A folha e o escurecimento estavam dessincronizados.** `.34s` numa curva muito
+   adiantada contra `.25s` noutra: a folha parava por volta dos 90 ms com o fundo
+   ainda a 44% do escuro, que continuava escurecendo sozinho por mais 160 ms. Duração
+   e curva agora saem de duas constantes únicas.
+3. **O travamento do rolamento travava o elemento errado.** O código punha
+   `overflow: hidden` no `body`, que neste app nunca teve barra de rolagem — quem rola
+   é a div do conteúdo. A tela de trás continuava correndo por baixo da folha. Pior:
+   havia um teste dizendo cobrir isso, e ele media o `body` — passava sem proteger
+   nada.
+4. **O gesto vazava da folha para a tela de trás.** Chegando ao topo do formulário, o
+   resto do movimento rolava o fundo: a folha parecia travada e o que se mexia era a
+   página atrás. Resolvido com `overscroll-behavior: contain`.
+
+Junto foi `interactive-widget=resizes-content` no viewport: sem isso, o teclado cobre
+o rodapé da folha de registro — que tem doze campos numéricos — e o botão Salvar fica
+inalcançável. Vale no Chrome do Android; o Safari do iOS ignora a diretiva.
+
+Coberto por 3 testes de navegador que medem geometria de verdade — a posição da folha
+quadro a quadro contra a opacidade do escuro, a opacidade efetiva da folha
+multiplicada por todos os ancestrais, e o rolamento do fundo antes, durante e depois.
+
+### 4.5 A abertura ainda quebrava no iPhone instalado — RESOLVIDO
+
+O 4.4 melhorou a folha no navegador de mesa e no deploy preview, mas no iPhone
+com o app salvo na tela de início continuavam dois sintomas: a tela dava um salto
+ao abrir a folha, e arrastar dentro dela rolava a página de trás.
+
+Nenhum dos dois reproduz no Chrome emulado, e por um motivo específico: o DevTools
+emula o layout, não o motor de rolagem. O Blink não tem o encadeamento por
+`UIScrollView` do WebKit, honra `preventScroll`, e não tem teclado de software.
+
+**O encadeamento era estrutural.** A folha, o aviso e a barra de abas nasciam
+dentro da div que rola. No toque, o WebKit procura o que rolar subindo a cadeia de
+ancestrais a partir de onde o dedo encostou, e encontrava o rolador do app. O
+`overscroll-behavior: contain` posto no 4.4 não cobre isso por duas razões: só
+contém o gesto que começa dentro de algo rolável e chega ao fim, e o WebKit o
+ignora de todo quando o elemento não transborda de fato (bug 243452, ainda aberto
+— Chrome e Firefox corrigiram, o Safari não). As camadas modais passaram a ser
+irmãs do rolador, por portal declarado dentro de `Sheet` e `Confirmacao`.
+
+**O salto era o foco.** O hook focava o primeiro botão da folha no instante em que
+ela ainda estava fora da tela, no começo da animação. O navegador então rola os
+contêineres de cima para revelar o elemento. `preventScroll` deveria impedir, mas
+o Safari do iOS ignora a opção — WebKit 236584, aberto até hoje. E o contêiner que
+ele rolava é o quadro do telefone, que tem `overflow: hidden`: o dedo não desfaz,
+então o deslocamento fica. O foco passou a esperar a animação terminar; com a
+caixa no lugar, não há o que revelar.
+
+Junto foram três coisas menores, todas com a mesma origem — o iOS decide o alvo do
+gesto quando o dedo encosta, então declarar depois chega tarde:
+
+- `touch-action: none` **no estilo** do fundo escurecido, da alça e do cabeçalho da
+  folha, que nunca rolam. Nunca no conteúdo, que precisa rolar.
+- `-webkit-overflow-scrolling: touch` removido. É no-op desde o iOS 13 e só serve
+  para reativar o caminho de rolagem legado.
+- `overscroll-behavior: none` no html e no body, contra o efeito elástico da página
+  inteira — que instalado na tela de início não revela nada e só descola o app da
+  moldura.
+- A folha respeita `env(safe-area-inset-bottom)`, em vez dos 34 px fixos.
+
+**Fica registrado o que não foi feito.** A cobertura completa exigiria um guarda de
+`touchmove` com `{passive: false}`, guardando o scroll parent no `touchstart` e
+prevenindo só quando ele não transborda — que é o que React Aria e vaul realmente
+fazem. São umas 30 linhas, sem dependência. Não foi feito porque `preventDefault`
+mal calibrado mata a rolagem de dentro da folha, e as correções acima cobrem os
+caminhos conhecidos. Se ainda vazar no iPhone, é o próximo passo.
+
+**Nada disto pôde ser verificado no motor do Safari**: o WebKit do Playwright não
+baixou neste ambiente. Os 5 testes novos medem o que é observável no Chromium — de
+onde nasce a camada modal, quando o foco entra, e o `touch-action` computado — e
+cada um foi conferido desfazendo o conserto correspondente. A confirmação de que os
+sintomas sumiram só pode vir do iPhone.
+
+---
+
 ---
 
 ## P5 — Alcance e refinamento
@@ -403,7 +489,7 @@ informativa; o valor absoluto não deve ser levado ao pé da letra.
 
 ## Ordem sugerida
 
-Já saíram: todo o P1, o 2.1, o 2.2, o 2.4, o 3.1, o 3.2, o 3.3, o 4.2, o 4.3 e o 5.1.
+Já saíram: todo o P1, o 2.1, o 2.2, o 2.4, o 3.1, o 3.2, o 3.3, o 4.2, o 4.3, o 4.4, o 4.5 e o 5.1.
 
 Restam **2.3**, **2.5** e **4.1** — alternativa textual dos gráficos, contraste das
 cores de destaque e modo escuro, os três avaliados e deixados de lado por ora — e

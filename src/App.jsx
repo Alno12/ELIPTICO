@@ -176,8 +176,48 @@ function App() {
     historico: "Histórico",
   }[tab];
 
+  /* Fora do rolador de propósito — ver o comentário em `Shell`. */
+  const sobreposicoes = (
+    <>
+      {sheet === "registrar" && (
+        <RegistrarSheet
+          cfg={cfg}
+          inicial={editando}
+          onSave={salvarTreino}
+          onClose={() => {
+            setSheet(null);
+            setEditando(null);
+          }}
+        />
+      )}
+      {sheet === "cfg" && <Ajustes cfg={cfg} onChange={saveCfg} onClose={() => setSheet(null)} />}
+      {toast && (
+        <div style={s.toast} role="status">
+          <span>{toast.texto ?? toast}</span>
+          {toast.acao && (
+            <button
+              style={s.toastAcao}
+              onClick={() => {
+                toast.acao.fn();
+              }}
+            >
+              {toast.acao.rotulo}
+            </button>
+          )}
+        </div>
+      )}
+      <TabBar tab={tab} setTab={setTab} onPlus={() => abrirRegistro()} />
+    </>
+  );
+
   return (
-    <Shell scroller={scroller} onScroll={onScroll} compact={scrolled} titulo={titulo}>
+    <Shell
+      scroller={scroller}
+      onScroll={onScroll}
+      compact={scrolled}
+      titulo={titulo}
+      sobreposicoes={sobreposicoes}
+    >
       {!ready ? (
         <div style={{ padding: 90, textAlign: "center", color: C.sec }}>Carregando…</div>
       ) : (
@@ -210,34 +250,6 @@ function App() {
         </div>
       )}
 
-      {sheet === "registrar" && (
-        <RegistrarSheet
-          cfg={cfg}
-          inicial={editando}
-          onSave={salvarTreino}
-          onClose={() => {
-            setSheet(null);
-            setEditando(null);
-          }}
-        />
-      )}
-      {sheet === "cfg" && <Ajustes cfg={cfg} onChange={saveCfg} onClose={() => setSheet(null)} />}
-      {toast && (
-        <div style={s.toast} role="status">
-          <span>{toast.texto ?? toast}</span>
-          {toast.acao && (
-            <button
-              style={s.toastAcao}
-              onClick={() => {
-                toast.acao.fn();
-              }}
-            >
-              {toast.acao.rotulo}
-            </button>
-          )}
-        </div>
-      )}
-      <TabBar tab={tab} setTab={setTab} onPlus={() => abrirRegistro()} />
     </Shell>
   );
 }
