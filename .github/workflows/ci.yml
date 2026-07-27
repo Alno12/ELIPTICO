@@ -1,8 +1,10 @@
 name: CI
 
+# push só na main; branches de trabalho são cobertas pelo gatilho de pull_request,
+# senão cada push numa branch com PR aberto dispara dois jobs idênticos
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
 
 # uma execução por referência: um push novo cancela a anterior que ainda estiver rodando
