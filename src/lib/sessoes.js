@@ -16,13 +16,19 @@ const naoNegativo = (v) => {
   return Number.isFinite(n) && n > 0 ? n : 0;
 };
 
-/* inteiro positivo para os campos opcionais de bpm e esforço; 0 e lixo viram nulo.
-   A faixa plausível desses valores é outro assunto (item 1.3 do MELHORIAS.md):
-   aqui só garantimos que o tipo não quebre nada adiante. */
-const inteiroOuNulo = (v) => {
+/* Inteiro dentro de uma faixa; qualquer outra coisa vira nulo.
+
+   Fora da faixa vira nulo em vez de ser ajustado para o limite: um 1500 gravado
+   por engano não vira 250 bpm, porque 250 pareceria uma leitura real que o
+   usuário nunca fez. Desconhecido é mais honesto que inventado. */
+const inteiroNaFaixa = (v, min, max) => {
   const n = Math.round(naoNegativo(v));
-  return n > 0 ? n : null;
+  return n >= min && n <= max ? n : null;
 };
+
+/* faixa plausível de frequência cardíaca */
+export const FC_MIN = 30;
+export const FC_MAX = 250;
 
 export const dataValida = (d) =>
   typeof d === "string" &&
@@ -48,9 +54,9 @@ export function normalizarSessao(bruta) {
     date: bruta.date,
     zones,
     total,
-    avgHr: inteiroOuNulo(bruta.avgHr),
-    maxHr: inteiroOuNulo(bruta.maxHr),
-    rpe: inteiroOuNulo(bruta.rpe),
+    avgHr: inteiroNaFaixa(bruta.avgHr, FC_MIN, FC_MAX),
+    maxHr: inteiroNaFaixa(bruta.maxHr, FC_MIN, FC_MAX),
+    rpe: inteiroNaFaixa(bruta.rpe, 1, 10),
     notes: typeof bruta.notes === "string" ? bruta.notes : "",
   };
 }

@@ -9,92 +9,55 @@ experimento reproduzível descrito no próprio item. Onde está escrito *leitura
 código*, é análise sem reprodução. A diferença importa na hora de decidir se vale
 confiar sem verificar.
 
-Estado de referência: `App.jsx` com 2.079 linhas, 134 testes em Vitest, pacote de
-225 kB (70 kB comprimido).
+As referências apontam para **nomes de função e de componente**, não para números de
+linha. A versão anterior deste documento citava linhas, e todas apodreceram em duas
+semanas de mudanças — um nome sobrevive à edição vizinha, um número não.
+
+Estado de referência: `App.jsx` com 2.267 linhas, 161 testes em Vitest e 38 em
+Playwright, pacote de 225 kB (70 kB comprimido).
 
 **Já resolvido** (não repetir): datas em fuso local, contador de sequência de semanas,
 contradição do "Tempo fácil", ressemeadura dos exemplos, PWA instalável e offline,
 importação de CSV, vazamento da janela de 17 semanas, extração da lógica pura e suíte
 de testes, plano de 10 semanas removido, registro em minutos e segundos, minutos
-equivalentes, médias da Consistência, recordes da semana corrente, limite do RPE,
-"FC máxima registrada: 0 bpm".
+equivalentes, médias da Consistência, recordes da semana corrente,
+"FC máxima registrada: 0 bpm", normalização dos dados na leitura, tela de
+recuperação, faixa plausível de FC e RPE, contraste do texto neutro, testes de
+interface versionados, lint e CI.
 
 ---
 
 ## P1 — O app pode parar de abrir
 
-### 1.1 Um registro malformado deixa a tela em branco, sem saída
+### 1.1 Registro malformado deixava a tela em branco — RESOLVIDO
 
-**Medido.** Gravei no `localStorage` uma sessão sem o campo `zones` — a forma que um
-registro de um esquema antigo teria — e abri o app:
+Uma sessão sem o campo `zones` fazia `calcularStats` acessar `x.zones.z1` e derrubar
+a árvore inteira, sem caminho de recuperação de dentro do app.
 
-```
-erro lançado : Cannot read properties of undefined (reading 'z1')
-tela         : EM BRANCO
-texto visível: (nada)
-dá para chegar nos Ajustes e limpar? NÃO
-```
+Duas camadas: `src/lib/sessoes.js` normaliza tudo que vem do armazenamento — zona
+ausente vira 0, registro irrecuperável é descartado com aviso — e um error boundary
+mostra uma tela de recuperação, que oferece baixar uma cópia bruta dos dados antes
+de limpar.
 
-A leitura em `src/App.jsx:77` faz `JSON.parse` e confere apenas `Array.isArray`. O
-conteúdo de cada registro entra sem validação, e `calcularStats` acessa `x.zones.z1`
-direto.
+Cada camada foi verificada desligando a outra: sem a normalização caem 4 testes,
+sem o limite caem 3.
 
-O agravante é a ausência de saída. Não há error boundary em lugar nenhum do projeto,
-então o React desmonta a árvore inteira e resta uma página vazia. Como os dados estão
-no `localStorage` e o app é um PWA com service worker, o usuário não consegue chegar
-nos Ajustes para limpar nem "recarregar até funcionar": só limpando os dados do site
-pelo navegador, o que joga fora todo o histórico.
+### 1.2 `total` divergia das zonas — RESOLVIDO
 
-Um caso mais brando da mesma causa: uma sessão a que falte **uma** das cinco zonas
-produz `NaN` em vez de erro, e o `NaN` se espalha em silêncio pelos totais
-(`src/lib/stats.js:246` soma `x.zones.z3 + x.zones.z4 + x.zones.z5` sem guarda).
+`total` passou a ser derivado das zonas na normalização, em vez de lido do
+armazenamento. Eram duas fontes de verdade para o mesmo número: uma sessão gravada
+com `total: 9999` e zonas somando 60 exibia 9999.
 
-Hoje o risco é baixo, porque tanto o formulário quanto a importação sempre gravam as
-cinco zonas. Mas é exatamente o que quebra na próxima mudança de esquema — e o
-sintoma, uma tela branca, não aponta para a causa.
+### 1.3 FC média e máxima aceitam qualquer valor — RESOLVIDO
 
-**Abordagem sugerida.** Duas peças independentes, e as duas valem por si:
+Faixa de 30 a 250 bpm, e esforço percebido de 1 a 10, aplicados nos três caminhos
+de entrada: o formulário recusa com mensagem, e a leitura do armazenamento e a
+importação de CSV tratam o valor como desconhecido.
 
-1. Uma função de normalização na leitura, preenchendo zonas ausentes com 0 e
-   descartando registros irrecuperáveis. É o mesmo trabalho que `sessoesDeCsv` já faz
-   para o CSV; dá para aproveitar a forma.
-2. Um error boundary em volta do `App`, com uma tela de recuperação que ofereça
-   exportar o backup e limpar os dados. Cobre também os defeitos que ainda não
-   conhecemos.
-
-**Esforço:** três horas para as duas.
-
-### 1.2 `total` é gravado à parte das zonas e pode divergir
-
-**Medido.** Uma sessão com `total: 9999` e zonas somando 60 aparece como 9999 minutos
-na semana. O campo é gravado no envio do formulário (`src/App.jsx:907`) e depois lido
-como verdade, em vez de derivado das zonas.
-
-Enquanto só o formulário e a importação escreverem, os dois valores concordam. O
-problema é que `total` é redundante: existe uma segunda fonte de verdade para um
-número que já está nas zonas, e nada garante que as duas continuem de acordo.
-
-**Abordagem sugerida.** Derivar `total` na leitura, com `totalZ(zones)`, e parar de
-persistir o campo. A normalização do item 1.1 é o lugar natural para isso.
-
-**Esforço:** uma hora, contando a migração dos registros existentes.
-
-### 1.3 FC média e máxima aceitam qualquer valor
-
-**Medido.** O formulário sanitiza com `Math.max(0, Number(v) || 0)` e grava sem teto
-(`src/App.jsx:908`). Com uma FC média de 1500 registrada, a métrica "percentual da
-reserva cardíaca" na aba Análise passa a exibir **590%**.
-
-O gráfico de eficiência cardíaca ajusta o eixo pelos valores mínimo e máximo da série,
-então um único valor absurdo achata todos os outros pontos contra a base.
-
-O RPE já foi limitado a 0–10 quando o formulário foi reescrito. A importação de CSV
-também limita. É só o formulário que não limita a FC.
-
-**Abordagem sugerida.** `clamp` com faixa plausível — algo como 30–250 bpm — no envio,
-igual ao que já é feito com o RPE, e sinalização no campo.
-
-**Esforço:** meia hora.
+Fora da faixa vira **nulo, não o limite**: um 1500 gravado por engano não vira
+250 bpm, porque 250 pareceria uma leitura real que a pessoa nunca fez.
+Desconhecido é mais honesto que inventado. Isso mudou também o RPE, que antes era
+ajustado em silêncio de 99 para 10.
 
 ---
 
@@ -104,38 +67,22 @@ Subiu de prioridade em relação ao levantamento anterior porque o item de contr
 deixou de ser suspeita e virou medição: ele afeta praticamente todo o texto de apoio
 do app, o tempo inteiro, e não só em situações de exceção.
 
-### 2.1 O texto secundário reprova o contraste mínimo
+### 2.1 Contraste do texto neutro — RESOLVIDO
 
-**Medido.** Calculei a razão de contraste das cores de texto sobre os dois fundos
-usados, pela fórmula do WCAG 2.1:
+`C.sec` foi de 0,6 para 0,725 de opacidade e `C.ter` de 0,28 para 0,565. Medido
+sobre os dois fundos usados:
 
-| Cor | Sobre card `#FFF` | Sobre fundo `#F2F2F7` | Mínimo AA (texto normal) |
+| Cor | Antes | Depois | Mínimo |
 |---|---|---|---|
-| `C.sec` — `rgba(60,60,67,0.6)` | **3,44:1** | **3,29:1** | 4,5:1 — reprova |
-| `C.ter` — `rgba(60,60,67,0.28)` | **1,67:1** | **1,64:1** | 4,5:1 — reprova |
+| `C.sec` (texto de apoio) | 3,44:1 | **4,78:1** | 4,5:1 |
+| `C.ter` (rótulo de eixo) | 1,67:1 | **3,14:1** | 3:1 |
 
-`C.sec` (`src/App.jsx:16`) não é um detalhe: é a cor de oito estilos de texto —
-`eyebrow`, `unit`, `tileLabel`, `rowSub`, `insightBody`, `foot`, entre outros — com
-41 usos diretos. Na prática, todo o texto de apoio do app. E todos esses estilos usam
-fontes de 12,5 a 14 px, que contam como texto normal no WCAG; a tolerância de 3,0:1
-vale só a partir de 18,7 px em negrito ou 24 px.
-
-`C.ter` (`src/App.jsx:17`), com 17 usos, é a cor dos rótulos dos eixos dos gráficos e
-dos marcadores "—" de dia sem treino. A 1,67:1, é quase invisível.
-
-Isso não é rigor formal: são os números que somem ao ler o celular no sol da rua ou
-com a tela no brilho baixo da academia.
-
-**Abordagem sugerida.** Escurecer as duas. `rgba(60,60,67,0.78)` leva `C.sec` para a
-casa de 4,6:1 sobre branco; `C.ter` precisa de algo perto de 0,55 de opacidade para
-passar de 3,0:1, o suficiente para rótulo de eixo. Vale conferir a aparência depois,
-porque o app imita a paleta do iOS de propósito.
-
-**Esforço:** duas horas, quase todas em conferência visual.
+Coberto por teste de navegador que calcula a razão a partir das cores realmente
+computadas na página, não das constantes do código.
 
 ### 2.2 As folhas modais não são diálogos
 
-**Leitura de código.** O componente `Sheet` (`src/App.jsx:1722`) é um `<div>` dentro
+**Leitura de código.** O componente `Sheet`, em `src/App.jsx`, é um `<div>` dentro
 de outro `<div>`. Falta tudo o que caracteriza um diálogo:
 
 - sem `role="dialog"` e sem `aria-modal`
@@ -144,7 +91,7 @@ de outro `<div>`. Falta tudo o que caracteriza um diálogo:
 - sem fechamento com Esc
 - sem bloqueio do rolamento do fundo
 - sem devolução do foco ao elemento que abriu a folha
-- o fundo escurecido é um `<div>` com `onClick` (`src/App.jsx:1724`), sem
+- o fundo escurecido é um `<div>` com `onClick` (`s.sheetWrap`, no mesmo componente), sem
   `role="presentation"`, invisível para o teclado
 
 Para quem usa teclado ou leitor de tela, abrir "Novo treino" significa perder a
@@ -171,77 +118,95 @@ TRIMP, tendência de alta". Uma frase resolve mais que qualquer descrição estr
 
 **Esforço:** meio dia para o conjunto.
 
-### 2.4 Quatro itens menores
+### 2.4 Itens menores — RESOLVIDOS, menos um por decisão
 
-**Leitura de código**, todos independentes:
+- **`aria-current`** passou a emitir `"page"` ou nada, em vez do inválido `"false"`.
+- **Campos sem rótulo**: data, notas e os três campos numéricos ganharam
+  `aria-label`. Coberto por teste que reprova qualquer `input` ou `textarea` sem
+  nome acessível.
+- **`prefers-reduced-motion`** já estava tratado.
+- **`maximum-scale=1`** foi **mantido por decisão** — está registrado em
+  "Limitações conhecidas e aceitas".
 
-- **`aria-current={on}`** (`src/App.jsx:1876`) gera `aria-current="false"` no item não
-  selecionado, que não é valor válido. O correto é `aria-current={on ? "page" :
-  undefined}`.
-- **Campos sem `<label>`**: o seletor de data, o campo de notas e o `FieldNum`
-  genérico dependem de proximidade visual. Os campos de minutos e segundos por zona
-  já têm `aria-label`.
-- **`maximum-scale=1`** no viewport (`index.html:5`) sinaliza bloqueio de zoom.
-- **`prefers-reduced-motion`** já está tratado e desliga todas as animações — este
-  não é um problema, fica registrado para não ser reinvestigado.
+### 2.5 As cores de destaque reprovam o contraste
 
-**Esforço:** uma hora para os três primeiros.
+**Medido.** Apareceu ao escrever o teste do item 2.1, que a princípio reprovava
+muito além do texto neutro.
+
+Como **texto** sobre o card branco:
+
+| Cor | Razão | Número grande (3:1) | Texto pequeno (4,5:1) |
+|---|---|---|---|
+| verde `#30D158` | 2,02:1 | reprova | reprova |
+| laranja `#FF9F0A` | 2,06:1 | reprova | reprova |
+| vermelho `#FF375F` | 3,52:1 | ok | reprova |
+| roxo `#BF5AF2` | 3,52:1 | ok | reprova |
+| azul `#007AFF` | 4,02:1 | ok | reprova |
+
+O verde aparece nos minutos da semana e em toda variação positiva ("↑ 2 vs.
+anterior", 12,5 px); o laranja, na carga em TRIMP.
+
+E como texto **branco sobre selo colorido** — os números de zona, que precisam de
+4,5:1 por serem pequenos:
+
+| | Razão |
+|---|---|
+| Zona 1 `#5AC8FA` | 1,90:1 |
+| Zona 2 `#30D158` | 2,02:1 |
+| Zona 3 `#FFD60A` | **1,41:1** |
+| Zona 4 `#FF9F0A` | 2,06:1 |
+| Zona 5 `#FF375F` | 3,52:1 |
+
+**Por que não foi corrigido junto com o 2.1.** O 2.1 mexeu em dois cinzas e
+ninguém nota. Escurecer verde, laranja e amarelo muda a aparência do app de forma
+visível, e a paleta imita a do iOS de propósito — é decisão de produto, não de
+correção, e pede conferência no aparelho.
+
+**Abordagem sugerida.** Separar cor de marca de cor de texto: manter os tons
+atuais em barras, selos e preenchimentos, e usar variantes escurecidas só onde a
+cor vira texto. Para os selos de zona, texto escuro em vez de branco resolve sem
+mexer na cor de fundo.
+
+**Esforço:** meio dia, quase todo em conferência visual.
 
 ---
 
 ## P3 — O código não se defende sozinho
 
-### 3.1 Nenhum teste de interface versionado
+### 3.1 Nenhum teste de interface versionado — RESOLVIDO
 
-**Medido.** `git ls-files` devolve quatro arquivos de teste, todos de `src/lib/`:
-`csv.test.js` (36 testes), `datas.test.js` (37), `stats.test.js` (38) e `util.test.js`
-(23). Nada cobre `App.jsx`, que concentra 2.079 das 3.597 linhas do projeto.
+Playwright em `e2e/`, contra o build de produção num viewport de celular. Qualquer
+erro de runtime ou no console reprova o teste, mesmo que as asserções passem.
 
-Isso não é hipotético. Dois defeitos reais escaparam de todos os 134 testes unitários
-e do build, e só apareceram em verificação por navegador:
+A rede foi verificada reintroduzindo os dois defeitos que a motivaram: o hook
+depois de retorno antecipado derruba os testes que cruzam a fronteira de app vazio
+para app com dados; a sobrescrita de `style` pela animação derruba o teste da grade.
 
-- uma função de deslize chamava `useRef` depois de um retorno antecipado, e a tela
-  quebrava ao salvar o primeiro treino num app zerado;
-- espalhar as props de uma animação sobre um elemento que já tinha `style`
-  sobrescrevia o estilo e destruía a grade de duas colunas, de forma permanente.
+**Uma armadilha que apareceu no caminho:** o Playwright estava configurado para
+reaproveitar um servidor de preview já em execução, e chegou a aprovar uma validação
+que ainda nem tinha sido compilada. `reuseExistingServer` passou a ser `false`, com
+o motivo escrito na configuração.
 
-Os dois passavam no build e nos testes. Nenhum seria pego por teste unitário da
-camada pura, porque nenhum dos dois está nela.
+### 3.2 Sem lint, formatação nem CI — RESOLVIDO
 
-As suítes de navegador que os pegaram foram escritas fora do repositório e se perdem
-com o ambiente. **É o item de maior retorno da lista**: a rede que já provou pegar
-defeito real não existe no projeto.
+ESLint com `react-hooks`, Prettier e um workflow do GitHub Actions rodando lint,
+formatação, testes, build e navegador a cada push.
 
-**Abordagem sugerida.** Playwright como dependência de desenvolvimento, um diretório
-`e2e/`, e um `npm run e2e`. Começar pelos caminhos que já se mostraram frágeis: app
-zerado até o primeiro treino salvo, navegação entre semanas, e exportar/reimportar
-sem duplicar.
+O lint encontrou, de imediato, o BOM do Excel escrito como caractere literal dentro
+de uma regex — invisível no editor, e uma normalização distraída quebraria a leitura
+de CSVs de planilha sem deixar rastro.
 
-**Esforço:** um dia para a estrutura e os primeiros casos.
+A formatação do Prettier **não** foi aplicada ao código existente: reescreveria
+2.263 linhas só no `App.jsx`. `src/` está no `.prettierignore` com o motivo; vale
+formatar junto com o item 3.3, que já reescreve o arquivo.
 
-### 3.2 Sem lint, formatação nem CI
+### 3.3 `App.jsx` com 2.267 linhas
 
-**Medido.** Não existem `.eslintrc*`, `eslint.config.*`, `.prettierrc*` nem diretório
-`.github`. Os scripts do `package.json` são `dev`, `build`, `preview`, `test` e
-`test:watch`.
-
-O `eslint-plugin-react-hooks` teria apontado sozinho o defeito de hooks descrito acima
-— é exatamente a regra `rules-of-hooks`.
-
-**Abordagem sugerida.** ESLint com `react-hooks`, Prettier na convenção já usada de
-fato (aspas duplas, ponto e vírgula), e um workflow que rode lint, testes e build a
-cada push.
-
-**Esforço:** meio dia.
-
-### 3.3 `App.jsx` com 2.079 linhas
-
-**Medido.** 2.079 das 3.597 linhas do projeto, contra 285 do maior módulo de
-`src/lib/`. Continuam no arquivo: quatro telas, duas folhas modais, doze gráficos SVG,
+**Medido.** 2.267 linhas, contra 285 do maior módulo de `src/lib/`. Continuam no arquivo: quatro telas, duas folhas modais, doze gráficos SVG,
 os componentes de interface e o objeto de estilos com 83 chaves.
 
-O arquivo **cresceu** desde a extração da lógica pura, porque as funcionalidades novas
-foram todas para dentro dele.
+O arquivo **continua crescendo**: era 2.018 linhas no levantamento anterior. As
+funcionalidades novas e a tela de recuperação foram todas para dentro dele.
 
 **Abordagem sugerida.** `charts/`, `ui/`, `screens/`, `styles.js`.
 
@@ -272,7 +237,7 @@ resolver junto com o item 2.1, já que os dois mexem na mesma paleta.
 
 ### 4.2 Excluir treino não pede confirmação nem tem volta
 
-**Leitura de código.** O botão Excluir (`src/App.jsx:833`) apaga na hora. O toast que
+**Leitura de código.** O botão Excluir, no detalhe do treino em `Historico`, apaga na hora. O toast que
 aparece depois é informativo e não oferece desfazer. Um toque errado numa lista densa
 apaga um registro sem recurso.
 
@@ -289,7 +254,7 @@ anterior já está em mãos no momento da exclusão.
 ### 5.1 Injeção de fórmula no CSV exportado
 
 **Medido.** As notas são escapadas para CSV — aspas duplicadas e campo entre aspas
-(`src/App.jsx:758`) — mas isso resolve delimitador, não fórmula. Uma nota começando
+(na função `exportar`, em `src/App.jsx`) — mas isso resolve delimitador, não fórmula. Uma nota começando
 com `=`, `+`, `-` ou `@` continua sendo avaliada como fórmula ao abrir o arquivo no
 Excel ou no Google Sheets:
 
@@ -375,11 +340,8 @@ conta.
 
 Achados menores, todos verificados por contagem de ocorrências:
 
-- **Três campos de `calcularStats` nunca lidos**: `delta` (`src/lib/stats.js:248`),
-  `densidade` (`:256`) e `maiorDur` (`:264`). Zero referências em `App.jsx` e zero nos
+- **Três campos de `calcularStats` nunca lidos**: `delta`, `densidade` e `maiorDur`, no objeto devolvido por `calcularStats`. Zero referências em `App.jsx` e zero nos
   testes. `densidade28` e `mediaDur`, que são parecidos, esses sim são usados.
-- **`import React`** em `src/App.jsx:1` sem nenhum uso de `React.` no arquivo — o JSX
-  moderno dispensa.
 - **Grade de referência dos gráficos** repetida quase idêntica em `CumulativeChart`,
   `LoadChart` e `IntensityChart`, cerca de seis linhas cada. Candidata a um
   componente `<Grade>`, junto com o item 3.3.
@@ -391,6 +353,11 @@ Achados menores, todos verificados por contagem de ocorrências:
 ## Limitações conhecidas e aceitas
 
 Não são defeitos. Ficam registradas para não virarem suspeita de novo:
+
+- **`maximum-scale=1` no viewport foi mantido por decisão.** Ele impede o usuário
+  de ampliar a tela com os dedos, o que prejudica quem enxerga pouco, mas evita o
+  zoom acidental ao tocar nos campos numéricos — que neste app são a interação mais
+  frequente. Decisão consciente, não esquecimento.
 
 - **O card "Este mês" compara com o mês anterior inteiro**, então a seta aponta para
   baixo nas três primeiras semanas de todo mês. Foi decisão consciente, contra a
@@ -431,15 +398,13 @@ informativa; o valor absoluto não deve ser levado ao pé da letra.
 
 ## Ordem sugerida
 
-1. **3.1** — teste de interface versionado. É o item que protege todos os outros, e o
-   único cuja ausência já custou defeito real duas vezes.
-2. **1.1** — normalização na leitura e error boundary. Maior gravidade da lista: hoje o
-   sintoma é tela branca sem recuperação.
-3. **2.1** — contraste. Duas horas, afeta todo o texto de apoio do app.
-4. **1.3** e **1.2** — faixa da FC e `total` derivado. Baratos, fecham o P1.
-5. **3.2** — lint e CI, que impedem a volta do que foi corrigido.
-6. **2.2**, **2.3**, **2.4** — o resto da acessibilidade.
-7. **4.1** com **2.1** revisitado — modo escuro, mexendo na paleta uma vez só.
-8. **4.2**, **5.1** — desfazer exclusão e escape do CSV.
-9. **3.3** — separação de `App.jsx`, agora com rede.
-10. **5.2**, **5.3**, **5.4** — quando houver motivo concreto.
+Os itens de P1, o 2.1, o 2.4, o 3.1 e o 3.2 já saíram. Do que resta:
+
+1. **4.2** e **5.1** — desfazer a exclusão e escapar fórmula no CSV. Baratos, e o
+   primeiro protege dado que não tem volta.
+2. **2.2** — folhas modais como diálogos de verdade.
+3. **2.5** com **4.1** — cores de destaque e modo escuro na mesma passada, já que
+   os dois refazem a paleta e os dois pedem conferência no aparelho.
+4. **2.3** — alternativa textual nos gráficos.
+5. **3.3** — separação do `App.jsx`, agora com rede de teste.
+6. **5.2**, **5.3**, **5.4** — quando houver motivo concreto.

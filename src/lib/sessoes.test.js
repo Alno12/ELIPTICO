@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizarSessao, normalizarSessoes, dataValida } from "./sessoes.js";
+import { normalizarSessao, normalizarSessoes, dataValida, FC_MIN, FC_MAX } from "./sessoes.js";
 
 const boa = {
   id: "s-1",
@@ -46,6 +46,26 @@ describe("registros que devem ser consertados", () => {
     expect(s.avgHr).toBeNull();
     expect(s.maxHr).toBeNull();
     expect(s.rpe).toBeNull();
+  });
+
+  /* Um 1500 gravado por engano fazia o percentual da reserva cardíaca exibir 590%
+     e achatava o gráfico de eficiência contra a base. */
+  it("frequência cardíaca fora da faixa vira desconhecida, não o limite", () => {
+    const s = normalizarSessao({ ...boa, avgHr: 1500, maxHr: 3 });
+    expect(s.avgHr).toBeNull();
+    expect(s.maxHr).toBeNull();
+  });
+
+  it("frequência cardíaca nos extremos da faixa é aceita", () => {
+    const s = normalizarSessao({ ...boa, avgHr: FC_MIN, maxHr: FC_MAX });
+    expect(s.avgHr).toBe(FC_MIN);
+    expect(s.maxHr).toBe(FC_MAX);
+  });
+
+  it("esforço fora de 1 a 10 vira desconhecido", () => {
+    expect(normalizarSessao({ ...boa, rpe: 99 }).rpe).toBeNull();
+    expect(normalizarSessao({ ...boa, rpe: 0 }).rpe).toBeNull();
+    expect(normalizarSessao({ ...boa, rpe: 7 }).rpe).toBe(7);
   });
 
   it("notas ausentes ou de outro tipo viram texto vazio", () => {
