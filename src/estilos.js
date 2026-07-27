@@ -501,6 +501,17 @@ const s = {
     background: "rgba(60,60,67,0.28)",
     margin: "8px auto 0",
   },
+  confirmWrap: {
+    position: "absolute", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.4)",
+    display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+    animation: "fade .18s ease",
+  },
+  confirmCaixa: {
+    background: C.card, borderRadius: 18, padding: "22px 20px 18px", width: "100%", maxWidth: 320,
+    boxShadow: "0 12px 40px rgba(0,0,0,0.28)", textAlign: "center",
+  },
+  confirmTitulo: { fontSize: 17, fontWeight: 600, letterSpacing: "-0.3px", display: "block" },
+  confirmTexto: { fontSize: 14, color: C.sec, lineHeight: 1.45, margin: "8px 0 4px" },
   sheetHead: {
     display: "flex",
     alignItems: "center",

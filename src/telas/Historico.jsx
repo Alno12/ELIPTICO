@@ -3,10 +3,12 @@ import { sum, fmt, mmss } from "../lib/util.js";
 import { iso, dayjs, shortDate } from "../lib/datas.js";
 import { ZONES, trimp, equiv } from "../lib/treino.js";
 import { C, s } from "../estilos.js";
-import { LargeTitle, SectionTitle, Card, Empty } from "../ui/estrutura.jsx";
+import { LargeTitle, SectionTitle, Card, Empty, Confirmacao } from "../ui/estrutura.jsx";
 
 function Historico({ sessions, onEdit, onDelete, onClearDemo, onReseed, onImport, onToast }) {
   const [open, setOpen] = useState(null);
+  /* o treino aguardando confirmação de exclusão, ou null */
+  const [aExcluir, setAExcluir] = useState(null);
   const arquivo = useRef(null);
 
   const inputArquivo = (
@@ -185,7 +187,7 @@ function Historico({ sessions, onEdit, onDelete, onClearDemo, onReseed, onImport
                       </button>
                       <button
                         style={{ ...s.destructive, flex: 1, marginTop: 0 }}
-                        onClick={() => onDelete(x.id)}
+                        onClick={() => setAExcluir(x)}
                       >
                         Excluir
                       </button>
@@ -231,6 +233,19 @@ function Historico({ sessions, onEdit, onDelete, onClearDemo, onReseed, onImport
           </button>
         )}
       </Card>
+
+      {aExcluir && (
+        <Confirmacao
+          titulo="Excluir este treino?"
+          texto={`${shortDate(aExcluir.date)} · ${fmt(aExcluir.total)} min. Dá para desfazer logo depois, no aviso.`}
+          rotuloConfirmar="Excluir"
+          onConfirmar={() => {
+            onDelete(aExcluir.id);
+            setAExcluir(null);
+          }}
+          onCancelar={() => setAExcluir(null)}
+        />
+      )}
     </>
   );
 }

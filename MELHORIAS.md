@@ -24,7 +24,8 @@ equivalentes, médias da Consistência, recordes da semana corrente, separação
 App.jsx em módulos,
 "FC máxima registrada: 0 bpm", normalização dos dados na leitura, tela de
 recuperação, faixa plausível de FC e RPE, contraste do texto neutro, testes de
-interface versionados, lint e CI.
+interface versionados, lint e CI, folhas modais com semântica de diálogo,
+confirmação antes de excluir treino.
 
 ---
 
@@ -81,27 +82,17 @@ sobre os dois fundos usados:
 Coberto por teste de navegador que calcula a razão a partir das cores realmente
 computadas na página, não das constantes do código.
 
-### 2.2 As folhas modais não são diálogos
+### 2.2 As folhas modais não eram diálogos — RESOLVIDO
 
-**Leitura de código.** O componente `Sheet`, em `src/App.jsx`, é um `<div>` dentro
-de outro `<div>`. Falta tudo o que caracteriza um diálogo:
+O `Sheet` ganhou `role="dialog"`, `aria-modal`, nome acessível, fechamento com Esc,
+armadilha de foco, bloqueio do rolamento do fundo e devolução do foco a quem abriu.
 
-- sem `role="dialog"` e sem `aria-modal`
-- sem armadilha de foco — dá para tabular para fora da folha aberta e continuar
-  navegando pelo conteúdo atrás dela
-- sem fechamento com Esc
-- sem bloqueio do rolamento do fundo
-- sem devolução do foco ao elemento que abriu a folha
-- o fundo escurecido é um `<div>` com `onClick` (`s.sheetWrap`, no mesmo componente), sem
-  `role="presentation"`, invisível para o teclado
+O comportamento saiu para um hook `useDialogo`, e a caixa de confirmação de exclusão
+foi seu primeiro cliente — duplicar armadilha de foco é como duplicar fechadura: uma
+das duas fica para trás na próxima mudança.
 
-Para quem usa teclado ou leitor de tela, abrir "Novo treino" significa perder a
-referência de onde está.
-
-**Abordagem sugerida.** Trocar por `<dialog>` nativo, que resolve foco, Esc e camada
-de sobreposição de graça, ou aplicar as marcações e o gerenciamento de foco à mão.
-
-**Esforço:** meio dia.
+Coberto por 5 testes de navegador, incluindo um que aperta Tab quarenta vezes e
+confirma que o foco não escapou.
 
 ### 2.3 Dezesseis gráficos sem alternativa textual
 

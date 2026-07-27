@@ -5,10 +5,13 @@ import { test, expect, abrirCom, treino, diaDaSemana, lerSessoes } from "./apoio
 test.describe("desfazer exclusão", () => {
   const dois = () => [treino(diaDaSemana(0, 0), { z2: 30 }), treino(diaDaSemana(0, 2), { z2: 45 })];
 
+  /* desde o PR da confirmação, excluir tem dois passos: pedir e confirmar.
+     A cobertura da própria confirmação está em dialogos.spec.js. */
   const excluirPrimeiro = async (page) => {
     await page.getByRole("button", { name: "Histórico", exact: true }).click();
     await page.locator("button").filter({ hasText: "TRIMP" }).first().click();
     await page.getByRole("button", { name: "Excluir" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Excluir" }).click();
   };
 
   test("o desfazer devolve o treino excluído", async ({ page }) => {
