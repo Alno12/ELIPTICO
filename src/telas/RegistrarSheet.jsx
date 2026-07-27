@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { fmt, minSeg, deMinSeg, mmss } from "../lib/util.js";
+import {
+  fmt,
+  mmss,
+  soDigitos,
+  tempoDeDigitos,
+  minutosDeDigitos,
+  digitosDeMinutos,
+  arrumarDigitos,
+} from "../lib/util.js";
 import { iso } from "../lib/datas.js";
 import { ZONES, totalZ, equivZ, faixa } from "../lib/treino.js";
 import { C, s } from "../estilos.js";
@@ -8,33 +16,15 @@ import { FieldNum } from "../ui/primitivos.jsx";
 import { FC_MIN, FC_MAX } from "../lib/sessoes.js";
 
 function RegistrarSheet({ cfg, inicial, onSave, onClose }) {
-  const vazio = { date: iso(new Date()), avgHr: "", maxHr: "", rpe: "", notes: "" };
+  const vazio = { date: iso(new Date()), avgHr: "", maxHr: "", rpe: "" };
   const partida = (() => {
-    if (!inicial)
-      return {
-        ...vazio,
-        ...Object.fromEntries(
-          ZONES.flatMap((k) => [
-            [`${k.id}m`, ""],
-            [`${k.id}s`, ""],
-          ]),
-        ),
-      };
+    if (!inicial) return { ...vazio, ...Object.fromEntries(ZONES.map((k) => [k.id, ""])) };
     return {
       date: inicial.date,
-      ...Object.fromEntries(
-        ZONES.flatMap((k) => {
-          const { m, s: seg } = minSeg(inicial.zones[k.id]);
-          return [
-            [`${k.id}m`, m ? String(m) : ""],
-            [`${k.id}s`, seg ? String(seg) : ""],
-          ];
-        }),
-      ),
+      ...Object.fromEntries(ZONES.map((k) => [k.id, digitosDeMinutos(inicial.zones[k.id])])),
       avgHr: inicial.avgHr ? String(inicial.avgHr) : "",
       maxHr: inicial.maxHr ? String(inicial.maxHr) : "",
       rpe: inicial.rpe ? String(inicial.rpe) : "",
-      notes: inicial.notes || "",
     };
   })();
 
@@ -42,8 +32,7 @@ function RegistrarSheet({ cfg, inicial, onSave, onClose }) {
   const [err, setErr] = useState(null);
   const editando = !!inicial;
   const n = (v) => (v === "" ? 0 : Math.max(0, Number(v) || 0));
-  const minutosDa = (z) => deMinSeg(f[`${z.id}m`], f[`${z.id}s`]);
-  const zonas = Object.fromEntries(ZONES.map((z) => [z.id, minutosDa(z)]));
+  const zonas = Object.fromEntries(ZONES.map((z) => [z.id, minutosDeDigitos(f[z.id])]));
   const total = totalZ(zonas);
   const carga = ZONES.reduce((a, z) => a + zonas[z.id] * z.w, 0);
   const equivalentes = equivZ(zonas);
@@ -80,7 +69,10 @@ function RegistrarSheet({ cfg, inicial, onSave, onClose }) {
       avgHr: n(f.avgHr) || null,
       maxHr: n(f.maxHr) || null,
       rpe: n(f.rpe) || null,
-      notes: f.notes.trim(),
+      /* O campo de notas saiu da tela, mas a nota de um treino já gravado não
+         pode evaporar só porque ele foi reaberto para editar. Continua sendo
+         lida do CSV e mostrada no Histórico. */
+      notes: inicial?.notes || "",
     });
   };
 
@@ -130,30 +122,23 @@ function RegistrarSheet({ cfg, inicial, onSave, onClose }) {
                 />
               </div>
             </div>
+            {/* Um campo só, preenchido da direita para a esquerda: digitar 1205
+                dá 12:05, sem passar de um campo para o outro no meio do número.
+                `text` em vez de `number` porque o valor mostrado tem dois-pontos;
+                `inputMode` mantém o teclado numérico. */}
             <div style={s.tempoCampo}>
               <input
                 style={s.tempoInput}
-                type="number"
-                min="0"
+                type="text"
                 inputMode="numeric"
-                placeholder="0"
-                aria-label={`${z.label}, minutos`}
-                value={f[`${z.id}m`]}
-                onChange={(e) => campo(`${z.id}m`, e.target.value)}
+                placeholder="0:00"
+                aria-label={`${z.label}, tempo`}
+                value={tempoDeDigitos(f[z.id])}
+                onChange={(e) => campo(z.id, soDigitos(e.target.value))}
+                /* o acerto de "0:83" para "1:23" espera a digitação terminar */
+                onBlur={() => campo(z.id, arrumarDigitos(f[z.id]))}
               />
               <span style={s.tempoSep}>min</span>
-              <input
-                style={s.tempoInput}
-                type="number"
-                min="0"
-                max="59"
-                inputMode="numeric"
-                placeholder="00"
-                aria-label={`${z.label}, segundos`}
-                value={f[`${z.id}s`]}
-                onChange={(e) => campo(`${z.id}s`, e.target.value)}
-              />
-              <span style={s.tempoSep}>s</span>
             </div>
           </div>
         ))}
@@ -197,18 +182,6 @@ function RegistrarSheet({ cfg, inicial, onSave, onClose }) {
           max={10}
           value={f.rpe}
           onChange={(v) => campo("rpe", v)}
-        />
-      </Card>
-
-      <SectionTitle>Notas</SectionTitle>
-      <Card>
-        <textarea
-          style={s.textarea}
-          rows={3}
-          placeholder="Como foi o treino"
-          aria-label="Notas do treino"
-          value={f.notes}
-          onChange={(e) => setF({ ...f, notes: e.target.value })}
         />
       </Card>
 

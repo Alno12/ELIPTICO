@@ -19,7 +19,7 @@ Estado de referência: `App.jsx` com 258 linhas (era 2.308 antes da separação)
 **Já resolvido** (não repetir): datas em fuso local, contador de sequência de semanas,
 contradição do "Tempo fácil", ressemeadura dos exemplos, PWA instalável e offline,
 importação de CSV, vazamento da janela de 17 semanas, extração da lógica pura e suíte
-de testes, plano de 10 semanas removido, registro em minutos e segundos, minutos
+de testes, plano de 10 semanas removido, registro do tempo num campo só, minutos
 equivalentes, médias da Consistência, recordes da semana corrente, separação do
 App.jsx em módulos,
 "FC máxima registrada: 0 bpm", normalização dos dados na leitura, tela de
@@ -115,7 +115,7 @@ TRIMP, tendência de alta". Uma frase resolve mais que qualquer descrição estr
 ### 2.4 Itens menores — RESOLVIDOS, menos um por decisão
 
 - **`aria-current`** passou a emitir `"page"` ou nada, em vez do inválido `"false"`.
-- **Campos sem rótulo**: data, notas e os três campos numéricos ganharam
+- **Campos sem rótulo**: data, tempo por zona e os três campos numéricos ganharam
   `aria-label`. Coberto por teste que reprova qualquer `input` ou `textarea` sem
   nome acessível.
 - **`prefers-reduced-motion`** já estava tratado.
@@ -460,8 +460,12 @@ Não são defeitos. Ficam registradas para não virarem suspeita de novo:
   e exportado com quatro casas, então 20 s viram 19,998 s ao reimportar. É invisível na
   interface, que exibe `0:20`, e a chave de deduplicação normaliza para segundos
   inteiros — reimportar não duplica. Só não é idêntico byte a byte.
-- **O campo de segundos aceita valores acima de 59.** Digitar 90 s é lido como 1,5 min,
-  em vez de ser recusado. Comportamento tolerante, de propósito.
+- **O campo de tempo aceita passar de 59 s no meio da digitação.** "0:83" é um estado
+  legítimo enquanto se digita 830, e ao sair do campo vira 1:23. Recusar na hora
+  tornaria impossível digitar qualquer tempo cujo caminho passe por mais de 59 s.
+- **O campo de notas foi removido da tela de registro**, a pedido. Notas de treinos
+  antigos e as que vêm de CSV continuam sendo guardadas e mostradas no Histórico —
+  editar um treino não apaga a nota dele. Só não há mais como escrever uma nova.
 
 ---
 

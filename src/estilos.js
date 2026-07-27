@@ -305,7 +305,8 @@ const s = {
      anel de foco de um campo cobre o rótulo do campo vizinho */
   tempoCampo: { display: "flex", alignItems: "center", gap: 6, flexShrink: 0 },
   tempoInput: {
-    width: 46,
+    /* cabe "123:45"; era 46 quando eram dois campos de dois algarismos */
+    width: 74,
     background: C.fill,
     border: "none",
     borderRadius: 9,

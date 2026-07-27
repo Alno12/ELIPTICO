@@ -46,4 +46,65 @@ const mmss = (minutos) => {
   return `${m}:${String(s).padStart(2, "0")}`;
 };
 
-export { sum, fmt, clamp, cap, desvio, pearson, mulberry32, minSeg, deMinSeg, mmss };
+/* Campo de tempo onde os dígitos entram pela direita, como no visor de um
+   cronômetro: 1 vira 0:01, 12 vira 0:12, 120 vira 1:20 e 1205 vira 12:05.
+
+   O estado do campo é a cadeia de dígitos, não o número. É o que faz o apagar
+   se comportar: some o último dígito e o resto desliza de volta sozinho, sem
+   precisar de nenhuma regra de cursor. */
+
+/* Só os algarismos do que foi digitado. Zeros à frente somem porque não mudam o
+   valor e atrapalham a contagem; cinco algarismos dão até 999:99, mais do que
+   qualquer sessão numa zona. */
+const soDigitos = (texto) =>
+  String(texto ?? "")
+    .replace(/\D/g, "")
+    .replace(/^0+/, "")
+    .slice(-5);
+
+/* Os dois últimos algarismos são os segundos, o resto são os minutos. Ao pé da
+   letra, sem normalizar: digitando 8, 3, 0 o campo passa por "0:83" antes de
+   chegar em "8:30".
+
+   Normalizar a cada tecla parece mais correto e não é: 83 s viraria 1:23, os
+   dígitos guardados passariam a ser 123, e o 0 seguinte daria 12:30 em vez de
+   8:30. Qualquer tempo cujo caminho passe por mais de 59 s seria impossível de
+   digitar. O acerto vem depois, ao sair do campo. */
+const tempoDeDigitos = (d) => {
+  if (!d) return "";
+  const p = String(d).padStart(3, "0");
+  return `${Number(p.slice(0, -2))}:${p.slice(-2)}`;
+};
+
+const minutosDeDigitos = (d) => {
+  if (!d) return 0;
+  const p = String(d).padStart(3, "0");
+  return Number(p.slice(0, -2)) + Number(p.slice(-2)) / 60;
+};
+
+const digitosDeMinutos = (minutos) => {
+  const { m, s } = minSeg(minutos);
+  return m || s ? `${m}${String(s).padStart(2, "0")}`.replace(/^0+/, "") : "";
+};
+
+/* A volta pelo valor é o que normaliza: "0:83" vira 1:23 e os dígitos guardados
+   passam a ser 123. Vale ao sair do campo, quando a digitação já terminou. */
+const arrumarDigitos = (texto) => digitosDeMinutos(minutosDeDigitos(soDigitos(texto)));
+
+export {
+  sum,
+  fmt,
+  clamp,
+  cap,
+  desvio,
+  pearson,
+  mulberry32,
+  minSeg,
+  deMinSeg,
+  mmss,
+  soDigitos,
+  tempoDeDigitos,
+  minutosDeDigitos,
+  digitosDeMinutos,
+  arrumarDigitos,
+};
