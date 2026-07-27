@@ -110,7 +110,8 @@ function App() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2800);
+    /* com ação, precisa durar o suficiente para ler e decidir */
+    const t = setTimeout(() => setToast(null), toast.acao ? 7000 : 2800);
     return () => clearTimeout(t);
   }, [toast]);
 
@@ -149,10 +150,25 @@ function App() {
   /* marca que o histórico passou a ser gerido pelo usuário: nunca mais semear exemplos por cima */
   const marcarLimpo = (next = cfg) => saveCfg({ ...next, demoLimpo: true });
 
+  /* Excluir não pede confirmação, para não atrapalhar quem acertou o toque; o
+     desfazer resolve quem errou. O estado anterior já está em mãos aqui, então
+     restaurar é devolver a lista — inclusive a marca de "exemplos limpos", que a
+     exclusão do último treino teria acionado. */
   const excluirTreino = (id) => {
+    const antes = sessions;
+    const cfgAntes = cfg;
     const restantes = sessions.filter((x) => x.id !== id);
     if (!restantes.length) marcarLimpo();
-    commit(restantes, "Treino excluído");
+    commit(restantes, {
+      texto: "Treino excluído",
+      acao: {
+        rotulo: "Desfazer",
+        fn: () => {
+          if (!restantes.length) saveCfg(cfgAntes);
+          commit(antes, "Treino restaurado");
+        },
+      },
+    });
   };
 
   const importarCsv = async (file) => {
@@ -215,7 +231,16 @@ function App() {
           onClose={() => { setSheet(null); setEditando(null); }} />
       )}
       {sheet === "cfg" && <Ajustes cfg={cfg} onChange={saveCfg} onClose={() => setSheet(null)} />}
-      {toast && <div style={s.toast}>{toast}</div>}
+      {toast && (
+        <div style={s.toast} role="status">
+          <span>{toast.texto ?? toast}</span>
+          {toast.acao && (
+            <button style={s.toastAcao} onClick={() => { toast.acao.fn(); }}>
+              {toast.acao.rotulo}
+            </button>
+          )}
+        </div>
+      )}
       <TabBar tab={tab} setTab={setTab} onPlus={() => abrirRegistro()} />
     </Shell>
   );
@@ -777,10 +802,18 @@ function Historico({ sessions, onEdit, onDelete, onClearDemo, onReseed, onImport
     const linhas = [["data", "total_min", "z1", "z2", "z3", "z4", "z5", "trimp", "min_equivalentes", "fc_media", "fc_max", "rpe", "notas"].join(",")];
     /* tempos podem ser fracionários; 4 casas bastam para reconstruir o segundo exato */
     const dec = (v) => Number((Number(v) || 0).toFixed(4)).toString();
+    /* Uma nota começando com =, +, - ou @ é avaliada como fórmula ao abrir o
+       arquivo numa planilha. O apóstrofo à frente faz Excel e LibreOffice
+       tratarem o campo como texto; a importação o remove de volta. */
+    const campoTexto = (v) => {
+      const t = String(v ?? "");
+      const seguro = /^[=+\-@\t\r]/.test(t) ? `'${t}` : t;
+      return `"${seguro.replace(/"/g, '""')}"`;
+    };
     [...sessions].sort((a, b) => a.date.localeCompare(b.date)).forEach((x) => {
       linhas.push([x.date, dec(x.total), ...ZONES.map((z) => dec(x.zones[z.id] || 0)),
         dec(trimp(x)), dec(equiv(x)), x.avgHr || "", x.maxHr || "", x.rpe || "",
-        `"${(x.notes || "").replace(/"/g, '""')}"`].join(","));
+        campoTexto(x.notes)].join(","));
     });
     try {
       const blob = new Blob(["\uFEFF" + linhas.join("\n")], { type: "text/csv;charset=utf-8" });
@@ -2235,6 +2268,14 @@ const s = {
     background: "rgba(28,28,30,0.95)", color: "#fff", padding: "12px 20px", borderRadius: 24,
     fontSize: 14, maxWidth: 330, textAlign: "center", animation: "rise .25s ease",
     boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+    display: "flex", alignItems: "center", justifyContent: "center", gap: 14,
+    /* posicionado absoluto encolhe até a menor largura possível e quebra a frase
+       sem precisar; max-content faz caber numa linha até o limite acima */
+    width: "max-content",
+  },
+  toastAcao: {
+    color: "#4DA3FF", fontSize: 14, fontWeight: 600, flexShrink: 0,
+    padding: "2px 2px", marginLeft: 2,
   },
   sheetWrap: {
     position: "absolute", inset: 0, background: "rgba(0,0,0,0.34)", zIndex: 40,
