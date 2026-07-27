@@ -1,0 +1,57 @@
+name: CI
+
+# push só na main; branches de trabalho são cobertas pelo gatilho de pull_request,
+# senão cada push numa branch com PR aberto dispara dois jobs idênticos
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# uma execução por referência: um push novo cancela a anterior que ainda estiver rodando
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Formatação
+        run: npm run format:check
+
+      - name: Testes unitários
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # o Playwright roda contra o build de produção, servido pelo `preview`
+      - name: Instalar navegador
+        run: npx playwright install --with-deps chromium
+
+      - name: Testes de navegador
+        run: npm run e2e
+
+      - name: Guardar o relatório quando algo falhar
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

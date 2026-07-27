@@ -1,0 +1,18 @@
+dist/
+node_modules/
+test-results/
+playwright-report/
+public/sw.js
+package-lock.json
+
+# O código existente não foi formatado pelo Prettier: fazê-lo agora reescreveria
+# 2.263 linhas só no App.jsx, tornando qualquer revisão impossível e apagando o
+# histórico de autoria. A formatação vale quando o arquivo for separado em módulos
+# (item 3.3 do MELHORIAS.md), que já vai reescrevê-lo de qualquer forma.
+src/
+
+# a prosa dos documentos é quebrada à mão, por legibilidade
+*.md
+
+# metatags em ordem deliberada
+index.html

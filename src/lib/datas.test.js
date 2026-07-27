@@ -1,6 +1,6 @@
 process.env.TZ = "America/Sao_Paulo";
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { pad2, iso, dayjs, daysAgo, diffDias, mondayOf, longDate, shortDate, DIAS_CURTO, DIAS_NOME } from "./datas.js";
 
 describe("pad2", () => {

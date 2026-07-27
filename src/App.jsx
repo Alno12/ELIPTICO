@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 
 import { sum, fmt, clamp, cap, minSeg, deMinSeg, mmss } from "./lib/util.js";
 import { DIAS_CURTO, DIAS_NOME, iso, dayjs, daysAgo, diffDias, mondayOf, longDate, shortDate } from "./lib/datas.js";
@@ -96,6 +96,9 @@ export default function App() {
   }, [toast]);
 
   const onScroll = useCallback(() => setScrolled((scroller.current?.scrollTop || 0) > 34), []);
+  /* o setScrolled aqui é deliberado: scrollTo dispara o evento de rolagem de forma
+     assíncrona, e sem isso a sombra do cabeçalho pisca por um quadro ao trocar de aba */
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { scroller.current?.scrollTo({ top: 0 }); setScrolled(false); }, [tab]);
 
   const commit = (next, msg) => {
@@ -265,7 +268,8 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
         <div>
           {/* controles fora da transição: se remontassem a cada troca, o toque se perderia */}
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 6 }}>
-            <div style={{ ...s.eyebrow, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <div data-testid="semana-rotulo"
+              style={{ ...s.eyebrow, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {dia ? cap(DIAS_NOME[dia.wd]) + ", " + dayjs(dia.date).getDate()
                 : offset === 0 ? "Esta semana" : rotuloSemana(sem)}
             </div>
@@ -276,7 +280,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
 
           <div {...transicao()}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
-              <span style={s.big}>{fmt(dia ? dia.total : sem.minutos)}</span>
+              <span data-testid="semana-minutos" style={s.big}>{fmt(dia ? dia.total : sem.minutos)}</span>
               <span style={s.unit}>min</span>
               {!dia && (
                 <span style={{ ...s.unit, color: deltaMin > 0 ? C.green : C.sec, fontSize: 13 }}>
@@ -315,7 +319,9 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
                 <div style={{ ...s.metaBarInner, width: `${pct}%` }} />
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", marginTop: 7 }}>
-                <span style={s.rowSub}>{fmt(sem.equiv)} de {st.meta} min equivalentes</span>
+                <span data-testid="semana-meta" style={s.rowSub}>
+                  {fmt(sem.equiv)} de {st.meta} min equivalentes
+                </span>
                 <span style={s.rowSub}>
                   {sem.equiv >= st.meta ? "meta atingida" : `${fmt(pct)}%`}
                 </span>
@@ -346,7 +352,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
       <SectionTitle>
         {offset === 0 ? "Esta semana" : rotuloSemana(sem)}
       </SectionTitle>
-      <div {...transicao(s.grid)}>
+      <div data-testid="quadros-semana" {...transicao(s.grid)}>
         <Tile i={2} label="Minutos" value={fmt(sem.minutos)} unit="min"
           delta={sem.minutos - ant.minutos} color={C.green} />
         <Tile i={3} label="Treinos" value={sem.sessoes} unit="sessões"
@@ -901,6 +907,7 @@ function RegistrarSheet({ cfg, inicial, onSave, onClose }) {
   const submit = () => {
     if (total === 0) { setErr("Informe o tempo em pelo menos uma zona."); return; }
     onSave({
+      // eslint-disable-next-line react-hooks/purity -- submit só roda em clique, nunca no render
       id: editando ? inicial.id : `s-${Date.now()}`,
       date: f.date,
       zones: zonas,

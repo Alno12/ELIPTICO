@@ -12,7 +12,7 @@ describe("parseCsv", () => {
   });
 
   it("remove BOM do início do arquivo", () => {
-    const csv = `﻿data,notas
+    const csv = `\uFEFFdata,notas
 2026-03-09,"teste"`;
     const linhas = parseCsv(csv);
     expect(linhas[0][0]).toBe("data");
@@ -176,7 +176,7 @@ banana,5,10,0,0,0
   });
 
   it("BOM no início não atrapalha", () => {
-    const csv = `﻿data,z1,z2,z3,z4,z5
+    const csv = `\uFEFFdata,z1,z2,z3,z4,z5
 2026-03-09,3,7,0,0,0`;
     const { sessoes } = sessoesDeCsv(csv);
     expect(sessoes).toHaveLength(1);

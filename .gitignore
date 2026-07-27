@@ -22,3 +22,9 @@ yarn-error.log*
 # screenshots de verificação, gerados fora do build
 *.png
 !public/*.png
+
+# saída dos testes de navegador
+test-results/
+playwright-report/
+/blob-report/
+.playwright/
