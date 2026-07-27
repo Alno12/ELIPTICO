@@ -42,15 +42,58 @@ test.describe("folha modal como diálogo", () => {
     expect(dentro, "o foco escapou da folha").toBe(true);
   });
 
+  /* A defesa principal contra a tela de trás rolar é estrutural: nenhuma camada
+     modal pode nascer dentro da div que rola. Enquanto nascia, todo arrasto sobre
+     a folha subia a cadeia de ancestrais, encontrava o rolador e mexia a página
+     atrás — que foi o que apareceu no iPhone. `overscroll-behavior` não cobre
+     isso: ele só contém o gesto que começa dentro de algo rolável e chega ao fim,
+     e o arrasto que começa no cabeçalho da folha ou no fundo escurecido nunca
+     passa por lá. */
+  test("nenhuma camada modal nasce dentro do que rola", async ({ page }) => {
+    await abrirCom(page, dois());
+    await abrirFolha(page);
+
+    const dentro = await page.evaluate(() => {
+      const rolador = document.querySelector('[data-rolagem="app"]');
+      return {
+        folha: rolador.contains(document.querySelector('[role="dialog"]')),
+        barra: rolador.contains(document.querySelector("nav")),
+      };
+    });
+    expect(dentro.folha, "a folha está dentro do rolador").toBe(false);
+    expect(dentro.barra, "a barra de abas está dentro do rolador").toBe(false);
+  });
+
+  test("a confirmação de exclusão também nasce fora do que rola", async ({ page }) => {
+    await abrirCom(page, dois());
+    await page.getByRole("button", { name: "Histórico", exact: true }).click();
+    await page.locator("button").filter({ hasText: "TRIMP" }).first().click();
+    await page.getByRole("button", { name: "Excluir" }).click();
+    await expect(page.getByRole("alertdialog")).toBeVisible();
+
+    /* Esta é levantada de dentro de uma tela, não pelo App — o caso que uma
+       correção só no App deixaria passar. */
+    const dentro = await page.evaluate(() =>
+      document
+        .querySelector('[data-rolagem="app"]')
+        .contains(document.querySelector('[role="alertdialog"]')),
+    );
+    expect(dentro, "a confirmação está dentro do rolador").toBe(false);
+  });
+
   /* Este teste já existiu numa versão que media `document.body`, e passava sem
      proteger nada: quem rola no app é a div do conteúdo, e o `body` nunca teve
-     barra de rolagem. Agora mede o elemento que de fato rola. */
-  test("o fundo para de rolar enquanto a folha está aberta", async ({ page }) => {
+     barra de rolagem. */
+  test("o fundo para de rolar, e volta exatamente onde estava", async ({ page }) => {
     await abrirCom(page, dois());
     const estado = () =>
       page.evaluate(() => {
         const el = document.querySelector('[data-rolagem="app"]');
-        return { overflowY: getComputedStyle(el).overflowY, scrollTop: el.scrollTop };
+        return {
+          touchAction: getComputedStyle(el).touchAction,
+          overflowY: getComputedStyle(el).overflowY,
+          scrollTop: el.scrollTop,
+        };
       });
 
     await page.evaluate(() =>
@@ -60,14 +103,14 @@ test.describe("folha modal como diálogo", () => {
     const antes = await estado();
 
     await abrirFolha(page);
-    expect((await estado()).overflowY, "o fundo continuou rolável").toBe("hidden");
+    const durante = await estado();
+    expect(durante.touchAction, "o dedo ainda arrasta o fundo").toBe("none");
+    /* Travar por `overflow` grampeia a posição no topo: era o salto que aparecia
+       ao abrir a folha no iPhone. A posição tem de sobreviver ao travamento. */
+    expect(durante.scrollTop, "a tela de trás saltou ao travar").toBe(antes.scrollTop);
 
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
-
-    /* Fechar tem de devolver a rolagem e a posição. Restaurar pelo atalho
-       `overflow` apagava o `overflow-y` que o React declara, e a página voltava
-       travada no topo. */
     expect(await estado(), "o fundo não voltou como estava").toEqual(antes);
   });
 

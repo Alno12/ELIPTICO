@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { ZONES } from "../lib/treino.js";
 import { C, s } from "../estilos.js";
 
@@ -28,7 +29,15 @@ function EstilosBase() {
   );
 }
 
-function Shell({ children, scroller, onScroll, compact, titulo }) {
+/* `sobreposicoes` são irmãs da div que rola, não filhas dela, e isso é o ponto.
+   Enquanto a folha modal, o aviso e a barra de abas ficavam dentro do rolador,
+   qualquer arrasto sobre eles subia a cadeia de ancestrais e encontrava o rolador
+   — então rolava a tela de trás. No iPhone era o que acontecia: arrastar na folha
+   mexia a página atrás dela. `overscroll-behavior` não resolve isso, porque só
+   contém o gesto que começa dentro de algo que rola e chega ao fim; o arrasto que
+   começa no cabeçalho da folha, no espaço entre campos ou no fundo escurecido
+   nunca passou por lá. Fora do rolador, não há o que encadear. */
+function Shell({ children, sobreposicoes, scroller, onScroll, compact, titulo }) {
   return (
     <div style={s.page}>
       <EstilosBase />
@@ -72,17 +81,32 @@ function Shell({ children, scroller, onScroll, compact, titulo }) {
         </defs>
       </svg>
 
-      <div style={s.phone}>
+      <div style={s.phone} data-camadas>
         <div style={{ ...s.compactBar, opacity: compact ? 1 : 0, pointerEvents: "none" }}>
           <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.3px" }}>{titulo}</span>
         </div>
         <div ref={scroller} onScroll={onScroll} style={s.scroll} data-rolagem="app">
           {children}
         </div>
+        {sobreposicoes}
       </div>
     </div>
   );
 }
+
+/* Toda camada modal se desenha no quadro do telefone, e não onde foi escrita.
+
+   Sem isto, uma folha aberta de dentro de uma tela nasce dentro da div que rola,
+   e todo arrasto sobre ela encontra o rolador subindo pela cadeia de ancestrais:
+   é a tela de trás que se mexe. A caixa de confirmação do Histórico é levantada
+   lá de dentro justamente assim.
+
+   Fica dentro dos próprios componentes modais, e não a cargo de quem os usa,
+   porque a garantia tem de valer em qualquer lugar de onde forem chamados. */
+const naCamadaDeCima = (conteudo) => {
+  const alvo = typeof document !== "undefined" && document.querySelector("[data-camadas]");
+  return alvo ? createPortal(conteudo, alvo) : conteudo;
+};
 
 /* Elementos que o teclado alcança dentro de um contêiner, na ordem em que os
    alcança. Exclui os desabilitados e os que estão fora de vista. */
@@ -103,22 +127,26 @@ function useDialogo(caixa, onClose, focoInicial = 0) {
   useEffect(() => {
     const abriuCom = document.activeElement;
     const alvos = focaveis(caixa.current);
-    /* `preventScroll` porque neste instante a folha ainda está fora da tela, no
+    /* `preventScroll` porque neste instante a caixa ainda está fora da tela, no
        começo da animação: sem ele o navegador rola os contêineres de cima para
-       revelar o que acabou de receber o foco, e a tela de trás dá um solavanco
-       no meio da abertura. */
+       revelar o que acabou de receber o foco. O Safari do iOS honra a opção há
+       poucas versões, então o que garante mesmo é a caixa não ser descendente
+       do rolador — revelar algo fora dele não tem o que rolar. */
     (alvos[focoInicial] || alvos[0] || caixa.current)?.focus({ preventScroll: true });
 
-    /* Quem rola neste app é a div do conteúdo, não o `body` — o `body` nem tem
-       barra de rolagem. Travar `body.style.overflow` não travava nada, e a tela
-       de trás continuava correndo por baixo da folha. */
+    /* Trava o rolador por `touch-action`, e não por `overflow: hidden`.
+
+       O `overflow` muda a geometria: um elemento rolado a 700 px que deixa de
+       ser rolável tem a posição grampeada no topo, e ao reabrir a rolagem a tela
+       já não está onde estava — é o salto que aparecia no iPhone ao abrir a
+       folha. `touch-action: none` não mexe em layout nem em posição de rolagem;
+       só diz ao navegador para não arrastar este elemento com o dedo.
+
+       Isto é a segunda linha de defesa. A primeira é estrutural: as camadas
+       modais ficam fora do rolador, então o gesto nem chega aqui. */
     const fundo = document.querySelector('[data-rolagem="app"]');
-    /* mexe na mesma propriedade que o React declara — `overflowY`, não o atalho
-       `overflow`. Limpar o atalho apagaria também o `overflow-y: auto` do React,
-       que não o reescreve porque para ele nada mudou: a div deixaria de rolar e
-       perderia a posição ao fechar a folha. */
-    const rolagemAntes = fundo?.style.overflowY;
-    if (fundo) fundo.style.overflowY = "hidden";
+    const tatoAntes = fundo?.style.touchAction;
+    if (fundo) fundo.style.touchAction = "none";
 
     const aoTeclar = (e) => {
       if (e.key === "Escape") {
@@ -143,7 +171,7 @@ function useDialogo(caixa, onClose, focoInicial = 0) {
 
     return () => {
       document.removeEventListener("keydown", aoTeclar);
-      if (fundo) fundo.style.overflowY = rolagemAntes || "";
+      if (fundo) fundo.style.touchAction = tatoAntes || "";
       /* devolve o foco a quem abriu, senão o teclado recomeça do topo da página */
       abriuCom?.focus?.();
     };
@@ -160,7 +188,7 @@ function Sheet({ children, onClose, titulo, esquerda, direita, rotulo }) {
   const caixa = useRef(null);
   useDialogo(caixa, onClose);
 
-  return (
+  return naCamadaDeCima(
     <div style={s.sheetWrap} onClick={onClose} role="presentation">
       <div style={s.sheetFundo} data-fundo-folha />
       <div
@@ -180,7 +208,7 @@ function Sheet({ children, onClose, titulo, esquerda, direita, rotulo }) {
         </div>
         <div style={s.sheetConteudo}>{children}</div>
       </div>
-    </div>
+    </div>,
   );
 }
 
@@ -191,7 +219,7 @@ function Confirmacao({ titulo, texto, rotuloConfirmar, onConfirmar, onCancelar }
   const caixa = useRef(null);
   useDialogo(caixa, onCancelar, 0);
 
-  return (
+  return naCamadaDeCima(
     <div style={s.confirmWrap} onClick={onCancelar} role="presentation">
       <div
         ref={caixa}
@@ -210,7 +238,7 @@ function Confirmacao({ titulo, texto, rotuloConfirmar, onConfirmar, onCancelar }
           {rotuloConfirmar}
         </button>
       </div>
-    </div>
+    </div>,
   );
 }
 

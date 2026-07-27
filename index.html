@@ -23,6 +23,10 @@
     <style>
       html, body, #root { height: 100%; margin: 0; }
       body { background: #DEDEE4; }
+      /* Impede o efeito elástico da página inteira. Instalado na tela de início,
+         sem barra de endereço, esse arrasto não revela nada — só descola o app
+         da moldura e denuncia que é uma página. */
+      html, body { overscroll-behavior: none; }
     </style>
   </head>
   <body>
