@@ -501,6 +501,11 @@ const s = {
     background: "rgba(60,60,67,0.28)",
     margin: "8px auto 0",
   },
+  navMes: {
+    display: "flex", alignItems: "center", gap: 10, padding: "6px 4px 10px",
+  },
+  navMesCentro: { flex: 1, minWidth: 0, textAlign: "center" },
+  navMesTitulo: { fontSize: 15.5, fontWeight: 600, letterSpacing: "-0.2px" },
   confirmWrap: {
     position: "absolute", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.4)",
     display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
