@@ -2,8 +2,11 @@ import { clamp } from "./util.js";
 import { dayjs } from "./datas.js";
 import { ZONES, totalZ } from "./treino.js";
 
+/* \uFEFF é o BOM que o Excel põe no início do arquivo. Escrito como escape porque
+   o caractere literal é invisível e some numa normalização distraída, o que
+   quebraria a leitura de arquivos exportados de planilha sem deixar rastro. */
 function parseCsv(texto) {
-  const t = texto.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
+  const t = texto.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
   const linhas = [];
   let campo = "", linha = [], aspas = false;
   for (let i = 0; i < t.length; i++) {
