@@ -2,7 +2,7 @@ import { useState } from "react";
 import { fmt, clamp, cap, mmss } from "../lib/util.js";
 import { DIAS_NOME, iso, dayjs, diffDias, mondayOf, longDate } from "../lib/datas.js";
 import { ZONES, trimp } from "../lib/treino.js";
-import { montarSemana } from "../lib/stats.js";
+import { montarSemana, montarJanela } from "../lib/stats.js";
 import { C, s } from "../estilos.js";
 import { LargeTitle, SectionTitle, Card, Empty } from "../ui/estrutura.jsx";
 import { Tile, Line } from "../ui/primitivos.jsx";
@@ -41,6 +41,22 @@ const rotuloSemana = (sem) => {
     : `${ini.getDate()} de ${mes(ini)} a ${fim.getDate()} de ${mes(fim)}`;
 };
 
+/* Um número da janela móvel. Sem o "vs." em cada um: a comparação é a mesma para
+   os quatro e está dita uma vez no título da seção. Repetir quatro vezes só
+   gastaria a linha que sobra para o número. */
+const NumeroJanela = ({ label, value, unit, delta, color }) => (
+  <div style={{ minWidth: 0 }}>
+    <div style={s.tileLabel}>{label}</div>
+    <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: 2 }}>
+      <span style={{ ...s.big, fontSize: 27, color }}>{value}</span>
+      <span style={{ ...s.unit, fontSize: 12.5 }}>{unit}</span>
+    </div>
+    <div style={{ ...s.rowSub, marginTop: 3, color: delta > 0 ? C.green : C.sec }}>
+      {delta > 0 ? "↑" : delta < 0 ? "↓" : "→"} {fmt(Math.abs(delta))}
+    </div>
+  </div>
+);
+
 function Resumo({ st, cfg, sessions, onAjustes }) {
   const [selDia, setSelDia] = useState(null);
   const [offset, setOffset] = useState(0);
@@ -77,6 +93,9 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
 
   const sem = montarSemana(sessions, offset);
   const ant = montarSemana(sessions, offset + 1);
+  /* ancoradas em hoje de propósito: não acompanham as setas de semana */
+  const jan = montarJanela(sessions);
+  const janAnt = montarJanela(sessions, 1);
   const pct = Math.min(100, st.meta ? (sem.equiv / st.meta) * 100 : 0);
   const dia = selDia != null ? sem.dias.find((d) => d.date === selDia) : null;
   const deltaMin = sem.minutos - ant.minutos;
@@ -185,11 +204,55 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
         </div>
       </Card>
 
+      {/* Janela móvel, presa a hoje. Fica fora da `transicao` e não recebe o
+          `offset`: navegar para uma semana de março não muda o que são os
+          últimos sete dias. O intervalo no título deixa isso explícito. */}
+      <SectionTitle>
+        Últimos 7 dias
+        <span style={s.sectionRight}>{rotuloSemana(jan)}</span>
+      </SectionTitle>
+      <Card i={1}>
+        <div data-testid="janela-7" style={{ ...s.grid, gap: "16px 12px" }}>
+          <NumeroJanela
+            label="Minutos"
+            value={fmt(jan.minutos)}
+            unit="min"
+            delta={jan.minutos - janAnt.minutos}
+            color={C.green}
+          />
+          <NumeroJanela
+            label="Treinos"
+            value={jan.sessoes}
+            unit="sessões"
+            delta={jan.sessoes - janAnt.sessoes}
+            color={C.blue}
+          />
+          <NumeroJanela
+            label="Carga"
+            value={fmt(jan.carga)}
+            unit="TRIMP"
+            delta={jan.carga - janAnt.carga}
+            color={C.orange}
+          />
+          <NumeroJanela
+            label="Min. equivalentes"
+            value={fmt(jan.equiv)}
+            unit="min"
+            delta={jan.equiv - janAnt.equiv}
+            color={C.purple}
+          />
+        </div>
+        <p style={{ ...s.foot, marginBottom: 0 }}>
+          Comparado com os 7 dias anteriores, de {rotuloSemana(janAnt)}. Diferente do card acima,
+          esta janela não zera na segunda-feira.
+        </p>
+      </Card>
+
       <SectionTitle>
         Distribuição por zona na semana
         <span style={s.sectionRight}>{offset === 0 ? "esta semana" : rotuloSemana(sem)}</span>
       </SectionTitle>
-      <Card i={1}>
+      <Card i={2}>
         <div>
           <div {...transicao()}>
             {sem.grand > 0 ? (
@@ -206,7 +269,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
       <SectionTitle>{offset === 0 ? "Esta semana" : rotuloSemana(sem)}</SectionTitle>
       <div data-testid="quadros-semana" {...transicao(s.grid)}>
         <Tile
-          i={2}
+          i={3}
           label="Minutos"
           value={fmt(sem.minutos)}
           unit="min"
@@ -214,7 +277,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
           color={C.green}
         />
         <Tile
-          i={3}
+          i={4}
           label="Treinos"
           value={sem.sessoes}
           unit="sessões"
@@ -222,7 +285,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
           color={C.blue}
         />
         <Tile
-          i={4}
+          i={5}
           label="Carga"
           value={fmt(sem.carga)}
           unit="TRIMP"
@@ -230,7 +293,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
           color={C.orange}
         />
         <Tile
-          i={5}
+          i={6}
           label="Min. equivalentes"
           value={fmt(sem.equiv)}
           unit="min"
@@ -243,11 +306,11 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
         Consistência
         <span style={s.sectionRight}>{st.streak} semanas seguidas</span>
       </SectionTitle>
-      <Card i={6}>
+      <Card i={7}>
         <Heatmap sessions={sessions} />
       </Card>
 
-      <Card i={7} pad={0}>
+      <Card i={8} pad={0}>
         <Line first label="Média de treinos por semana" value={fmt(st.sessoesPorSemana, 1)} />
         <Line label="Média de minutos por semana" value={`${fmt(st.mediaSemanal)} min`} />
         <Line label="Média de minutos equivalentes" value={`${fmt(st.equivSemanalMedio)} min`} />

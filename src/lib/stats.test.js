@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcularStats, escala, escalaFacil, montarSemana } from "./stats.js";
+import { calcularStats, escala, escalaFacil, montarSemana, montarJanela } from "./stats.js";
 import { iso, mondayOf } from "./datas.js";
 
 const CFG = {
@@ -323,5 +323,66 @@ describe("carga e zonas", () => {
       total: 100, avgHr: null, maxHr: null, rpe: null, notes: "",
     };
     expect(calcularStats([s], CFG).polar).toBeCloseTo(80, 1);
+  });
+});
+
+/* A janela móvel dos últimos 7 dias. O risco aqui é errar a fronteira por um dia
+   — incluir o oitavo, ou perder o de hoje —, e nenhum desses erros aparece na
+   tela: só faz o número ficar um pouco errado para sempre. */
+describe("montarJanela", () => {
+  const diasAtras = (n) => {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() - n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const treino = (n, min) => ({
+    id: `j${n}`,
+    date: diasAtras(n),
+    zones: { z1: 0, z2: min, z3: 0, z4: 0, z5: 0 },
+    total: min,
+    avgHr: null,
+    maxHr: null,
+    rpe: null,
+    notes: "",
+  });
+
+  it("pega hoje e os seis dias anteriores, e para aí", () => {
+    const j = montarJanela([treino(0, 10), treino(6, 10), treino(7, 99)]);
+    expect(j.minutos, "o sétimo dia atrás está fora da janela").toBe(20);
+    expect(j.sessoes).toBe(2);
+  });
+
+  it("a janela anterior começa exatamente onde a primeira termina", () => {
+    const treinos = [treino(6, 5), treino(7, 5), treino(13, 5), treino(14, 99)];
+    expect(montarJanela(treinos, 0).minutos).toBe(5);
+    expect(montarJanela(treinos, 1).minutos, "deve pegar os dias 7 a 13").toBe(10);
+  });
+
+  it("nenhum dia cai nas duas janelas nem fica de fora", () => {
+    const treinos = Array.from({ length: 14 }, (_, n) => treino(n, 1));
+    expect(montarJanela(treinos, 0).sessoes + montarJanela(treinos, 1).sessoes).toBe(14);
+  });
+
+  it("soma carga e minutos equivalentes, não só o tempo", () => {
+    const j = montarJanela([
+      {
+        id: "a",
+        date: diasAtras(1),
+        zones: { z1: 0, z2: 10, z3: 0, z4: 5, z5: 0 },
+        total: 15,
+        avgHr: null,
+        maxHr: null,
+        rpe: null,
+        notes: "",
+      },
+    ]);
+    expect(j.carga, "10×2 + 5×4").toBe(40);
+    expect(j.equiv, "10×1 + 5×2").toBe(20);
+  });
+
+  it("histórico vazio devolve zeros, não NaN", () => {
+    const j = montarJanela([]);
+    expect([j.minutos, j.carga, j.equiv, j.sessoes]).toEqual([0, 0, 0, 0]);
   });
 });
