@@ -34,8 +34,20 @@ function Heatmap({ sessions }) {
     const o = 0.28 + 0.72 * Math.min(1, (carga / maxCarga) * 1.15);
     return `rgba(48,209,88,${o.toFixed(2)})`;
   };
+  /* Carga de cada coluna, para a faixa de TRIMP semanal sob a grade.
+
+     A grade responde "em que dias você treinou" e some com a intensidade: um dia
+     puxado e um dia leve são dois quadrados verdes parecidos. A barra embaixo
+     devolve essa dimensão por semana, e o número dá o valor exato. */
+  const cargaSemana = cols.map((col) => col.reduce((a, d) => a + (mapa[d]?.carga || 0), 0));
+  const maxSemana = Math.max(1, ...cargaSemana);
+  const semanaSel = sel ? cols.findIndex((col) => col.includes(sel)) : -1;
+
+  const GRADE = 7 * (CELL + GAP),
+    ALT = 13,
+    BASE = GRADE + 6 + ALT;
   const W = SEMANAS * (CELL + GAP) + 22,
-    H = 7 * (CELL + GAP) + 16;
+    H = GRADE + 44;
   const noPeriodo = Object.entries(mapa)
     .filter(([d]) => d >= iso(inicio))
     .map(([, v]) => v);
@@ -105,6 +117,39 @@ function Heatmap({ sessions }) {
             );
           }),
         )}
+        <line x1={22} y1={BASE} x2={W} y2={BASE} stroke={C.sep} strokeWidth="0.7" />
+        {cargaSemana.map((carga, w) => {
+          /* piso de 1,5 para a semana com treino não sumir ao lado de uma semana
+             pesada; sem ele, 92 contra 414 vira barra invisível */
+          const h = carga ? Math.max(1.5, (carga / maxSemana) * ALT) : 0;
+          return h ? (
+            <rect
+              key={cols[w][0]}
+              x={22 + w * (CELL + GAP) + 2}
+              y={BASE - h}
+              width={CELL - 4}
+              height={h}
+              rx="1.6"
+              fill={C.indigo}
+              opacity={semanaSel === w ? 1 : 0.55}
+            />
+          ) : null;
+        })}
+        {cargaSemana.map((carga, w) => (
+          <text
+            key={cols[w][0]}
+            x={22 + w * (CELL + GAP) + CELL / 2}
+            y={GRADE + 29}
+            fontSize="7.5"
+            fill={semanaSel === w ? C.indigo : C.ter}
+            fontWeight={semanaSel === w ? 700 : 400}
+            textAnchor="middle"
+            style={{ fontVariantNumeric: "tabular-nums" }}
+          >
+            {/* sem separador de milhar: a coluna tem 19,5 px e "1.024" não caberia */}
+            {carga ? Math.round(carga) : "—"}
+          </text>
+        ))}
         {cols.map((col, w) => {
           const first = dayjs(col[0]);
           return first.getDate() <= 7 ? (
