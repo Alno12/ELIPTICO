@@ -2,13 +2,14 @@ import { useState } from "react";
 import { fmt, clamp, cap, mmss } from "../lib/util.js";
 import { DIAS_NOME, iso, dayjs, diffDias, mondayOf, longDate } from "../lib/datas.js";
 import { ZONES, trimp } from "../lib/treino.js";
-import { montarSemana, montarJanela } from "../lib/stats.js";
+import { montarSemana, montarJanela, curvaDose } from "../lib/stats.js";
 import { C, s } from "../estilos.js";
 import { LargeTitle, SectionTitle, Card, Empty } from "../ui/estrutura.jsx";
 import { Tile, Line } from "../ui/primitivos.jsx";
 import { ZoneColumn } from "../graficos/ZoneColumn.jsx";
 import { Heatmap } from "../graficos/Heatmap.jsx";
 import { WeekStrip } from "../graficos/WeekStrip.jsx";
+import { DoseChart } from "../graficos/DoseChart.jsx";
 
 const SetaSemana = ({ dir, ativa, onClick }) => (
   <button
@@ -96,6 +97,9 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
   /* ancoradas em hoje de propósito: não acompanham as setas de semana */
   const jan = montarJanela(sessions);
   const janAnt = montarJanela(sessions, 1);
+  const curva = curvaDose(sessions, 30);
+  const acimaDaMeta = curva.filter((p) => p.equiv >= st.meta).length;
+  const doseMedia = curva.reduce((a, p) => a + p.equiv, 0) / curva.length;
   const pct = Math.min(100, st.meta ? (sem.equiv / st.meta) * 100 : 0);
   const dia = selDia != null ? sem.dias.find((d) => d.date === selDia) : null;
   const deltaMin = sem.minutos - ant.minutos;
@@ -248,11 +252,46 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
         </p>
       </Card>
 
+      {/* A meta de 150 min equivalentes é uma dose semanal, não um evento de
+          calendário. Aqui ela vira um nível a sustentar: a curva mostra a dose
+          da janela de 7 dias em cada um dos últimos 30 dias, contra a linha da
+          meta. Nenhuma leitura por semana de calendário produz este gráfico —
+          os pontos despencariam a cada segunda-feira. */}
+      <SectionTitle>
+        Dose dos últimos 7 dias
+        <span style={s.sectionRight}>{rotuloSemana(jan)}</span>
+      </SectionTitle>
+      <Card i={2} pad={18}>
+        <div data-testid="dose" style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+          <span style={{ ...s.big, color: jan.equiv >= st.meta ? C.green : C.orange }}>
+            {fmt(jan.equiv)}
+          </span>
+          <span style={s.unit}>de {st.meta} min equivalentes</span>
+        </div>
+        <DoseChart pontos={curva} meta={st.meta} />
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 10,
+            borderTop: `0.5px solid ${C.sep}`,
+            marginTop: 12,
+            paddingTop: 11,
+          }}
+        >
+          <span style={s.rowSub}>
+            <b style={{ color: C.label, fontSize: 14 }}>{acimaDaMeta}</b> dos últimos 30 dias acima
+            da meta
+          </span>
+          <span style={s.rowSub}>média {fmt(doseMedia)}</span>
+        </div>
+      </Card>
+
       <SectionTitle>
         Distribuição por zona na semana
         <span style={s.sectionRight}>{offset === 0 ? "esta semana" : rotuloSemana(sem)}</span>
       </SectionTitle>
-      <Card i={2}>
+      <Card i={3}>
         <div>
           <div {...transicao()}>
             {sem.grand > 0 ? (
@@ -269,7 +308,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
       <SectionTitle>{offset === 0 ? "Esta semana" : rotuloSemana(sem)}</SectionTitle>
       <div data-testid="quadros-semana" {...transicao(s.grid)}>
         <Tile
-          i={3}
+          i={4}
           label="Minutos"
           value={fmt(sem.minutos)}
           unit="min"
@@ -277,7 +316,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
           color={C.green}
         />
         <Tile
-          i={4}
+          i={5}
           label="Treinos"
           value={sem.sessoes}
           unit="sessões"
@@ -285,7 +324,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
           color={C.blue}
         />
         <Tile
-          i={5}
+          i={6}
           label="Carga"
           value={fmt(sem.carga)}
           unit="TRIMP"
@@ -293,7 +332,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
           color={C.orange}
         />
         <Tile
-          i={6}
+          i={7}
           label="Min. equivalentes"
           value={fmt(sem.equiv)}
           unit="min"
@@ -306,11 +345,11 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
         Consistência
         <span style={s.sectionRight}>{st.streak} semanas seguidas</span>
       </SectionTitle>
-      <Card i={7}>
+      <Card i={8}>
         <Heatmap sessions={sessions} />
       </Card>
 
-      <Card i={8} pad={0}>
+      <Card i={9} pad={0}>
         <Line first label="Média de treinos por semana" value={fmt(st.sessoesPorSemana, 1)} />
         <Line label="Média de minutos por semana" value={`${fmt(st.mediaSemanal)} min`} />
         <Line label="Média de minutos equivalentes" value={`${fmt(st.equivSemanalMedio)} min`} />

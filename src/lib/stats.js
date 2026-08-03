@@ -23,6 +23,29 @@ export function montarJanela(sessions, recuo = 0, tamanho = 7) {
   };
 }
 
+/* Curva da dose: os minutos equivalentes da janela de 7 dias que termina em cada
+   um dos últimos `dias` dias.
+
+   É a mesma conta de `montarJanela`, repetida ao longo do tempo. Serve para ver a
+   recomendação semanal como um nível a sustentar, e não como uma caixa que zera
+   toda segunda-feira — o corpo não sabe que dia é hoje.
+
+   Soma por dia primeiro e depois desliza a janela: o custo é `dias × tamanho`
+   consultas, independente do tamanho do histórico. */
+export function curvaDose(sessions, dias = 30, tamanho = 7) {
+  const porDia = {};
+  sessions.forEach((x) => {
+    porDia[x.date] = (porDia[x.date] || 0) + equiv(x);
+  });
+  const pontos = [];
+  for (let i = dias - 1; i >= 0; i--) {
+    let soma = 0;
+    for (let j = 0; j < tamanho; j++) soma += porDia[iso(daysAgo(i + j))] || 0;
+    pontos.push({ date: iso(daysAgo(i)), equiv: soma });
+  }
+  return pontos;
+}
+
 /* Visão de uma semana de segunda a domingo. offset 0 é a semana corrente, 1 a
    anterior, e assim por diante. Pura e independente de `calcularStats`: é o que
    permite a aba Semana navegar pelo histórico sem recomputar tudo. */
