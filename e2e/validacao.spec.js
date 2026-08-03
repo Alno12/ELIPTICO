@@ -57,7 +57,11 @@ test.describe("faixa da frequência cardíaca", () => {
       { id: "x", date: "2026-07-20", zones: { z2: 30 }, avgHr: 1500, maxHr: 2000 },
     ]);
     await expect(page.getByText("FC máxima registrada")).toHaveCount(0);
-    await expect(page.getByText(/1500|2000/)).toHaveCount(0);
+    /* Com fronteira de palavra, e não a substring solta. Sem elas, este teste
+       casava com "meta 1500 5 de jul." — o `textContent` do gráfico da dose
+       gruda os rótulos "meta 150" e "05 de jul.", e o "1500" que aparece no meio
+       é um acidente de concatenação, não uma FC vazando para a tela. */
+    await expect(page.getByText(/\b1500\b|\b2000\b/)).toHaveCount(0);
   });
 
   test("FC plausível já gravada aparece nos recordes", async ({ page }) => {

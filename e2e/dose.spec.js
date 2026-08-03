@@ -65,3 +65,62 @@ test.describe("card da dose dos últimos 7 dias", () => {
     await expect(page.getByText(/0 dos últimos 30 dias acima da meta/)).toBeVisible();
   });
 });
+
+/* A leitura por arraste, no mesmo gesto do gráfico de zonas da aba Tendências. */
+test.describe("arrastar a curva da dose", () => {
+  const arrastarPara = async (page, fracao) => {
+    const svg = page.locator('[data-testid="dose"] ~ svg').first();
+    /* centraliza o gráfico na tela: abaixo da dobra ele fica sob a barra de abas,
+       e o ponteiro acerta a barra em vez do gráfico */
+    await svg.evaluate((el) => {
+      const r = document.querySelector('[data-rolagem="app"]');
+      r.scrollTop += el.getBoundingClientRect().top - r.clientHeight / 2;
+    });
+    await page.waitForTimeout(120);
+    const b = await svg.boundingBox();
+    await page.mouse.move(b.x + b.width * fracao, b.y + b.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width * fracao + 2, b.y + b.height / 2, { steps: 3 });
+    return svg;
+  };
+
+  test("arrastar mostra a dose e a data do dia sob o dedo", async ({ page }) => {
+    /* 200 equivalentes há 20 dias: a janela fica alta lá atrás e zerada agora */
+    await abrirCom(page, [treino(diasAtras(20), { z2: 200 })]);
+
+    const card = page.getByTestId("dose");
+    await expect(card, "em repouso mostra a janela de hoje").toContainText("0");
+
+    await arrastarPara(page, 0.4);
+    await expect(card).toContainText("nos 7 dias até");
+    await expect(card).toContainText("200");
+  });
+
+  test("soltar o dedo devolve o card ao dia de hoje", async ({ page }) => {
+    await abrirCom(page, [treino(diasAtras(20), { z2: 200 })]);
+    await arrastarPara(page, 0.4);
+    await expect(page.getByTestId("dose")).toContainText("nos 7 dias até");
+
+    await page.mouse.up();
+    await expect(page.getByTestId("dose")).not.toContainText("nos 7 dias até");
+  });
+
+  test("o gesto vertical continua rolando a página", async ({ page }) => {
+    await abrirCom(page, [treino(diasAtras(2), { z2: 60 })]);
+    const svg = page.locator('[data-testid="dose"] ~ svg').first();
+    /* sem `pan-y` o arraste vertical sobre o gráfico prenderia a rolagem */
+    expect(await svg.evaluate((el) => getComputedStyle(el).touchAction)).toBe("pan-y");
+  });
+
+  test("os dias acima da meta ficam verdes, e só eles", async ({ page }) => {
+    /* 200 equivalentes há 2 dias: hoje, ontem e anteontem acima da meta */
+    await abrirCom(page, [treino(diasAtras(2), { z2: 200 })]);
+    const faixas = await page.locator('[data-testid="dose"] ~ svg clipPath rect').count();
+    expect(faixas, "uma faixa verde por dia acima da meta").toBe(3);
+  });
+
+  test("sem nenhum dia acima da meta não há faixa verde", async ({ page }) => {
+    await abrirCom(page, [treino(diasAtras(2), { z2: 20 })]);
+    expect(await page.locator('[data-testid="dose"] ~ svg clipPath rect').count()).toBe(0);
+  });
+});
