@@ -60,6 +60,7 @@ const NumeroJanela = ({ label, value, unit, delta, color }) => (
 
 function Resumo({ st, cfg, sessions, onAjustes }) {
   const [selDia, setSelDia] = useState(null);
+  const [selDose, setSelDose] = useState(null);
   const [offset, setOffset] = useState(0);
   const [dir, setDir] = useState(-1);
   if (!st)
@@ -100,6 +101,8 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
   const curva = curvaDose(sessions, 30);
   const acimaDaMeta = curva.filter((p) => p.equiv >= st.meta).length;
   const doseMedia = curva.reduce((a, p) => a + p.equiv, 0) / curva.length;
+  /* o dia sob o dedo, enquanto o dedo estiver na curva */
+  const pontoDose = selDose != null ? curva[selDose] : curva[curva.length - 1];
   const pct = Math.min(100, st.meta ? (sem.equiv / st.meta) * 100 : 0);
   const dia = selDia != null ? sem.dias.find((d) => d.date === selDia) : null;
   const deltaMin = sem.minutos - ant.minutos;
@@ -259,16 +262,29 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
           os pontos despencariam a cada segunda-feira. */}
       <SectionTitle>
         Dose dos últimos 7 dias
-        <span style={s.sectionRight}>{rotuloSemana(jan)}</span>
+        <span style={s.sectionRight}>
+          {selDose != null ? "arraste para percorrer" : rotuloSemana(jan)}
+        </span>
       </SectionTitle>
       <Card i={2} pad={18}>
-        <div data-testid="dose" style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-          <span style={{ ...s.big, color: jan.equiv >= st.meta ? C.green : C.orange }}>
-            {fmt(jan.equiv)}
-          </span>
-          <span style={s.unit}>de {st.meta} min equivalentes</span>
+        <div data-testid="dose">
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+            <span style={{ ...s.big, color: pontoDose.equiv >= st.meta ? C.green : C.orange }}>
+              {fmt(pontoDose.equiv)}
+            </span>
+            <span style={s.unit}>de {st.meta} min equivalentes</span>
+          </div>
+          {/* a linha de baixo é a que muda ao arrastar: sem ela, o número grande
+              trocaria de valor sem dizer de que dia ele passou a ser */}
+          <div style={{ ...s.rowSub, marginTop: 4 }}>
+            {selDose != null
+              ? `nos 7 dias até ${longDate(pontoDose.date)}`
+              : jan.equiv >= st.meta
+                ? `${fmt(jan.equiv - st.meta)} acima da recomendação`
+                : `faltam ${fmt(st.meta - jan.equiv)} para a recomendação`}
+          </div>
         </div>
-        <DoseChart pontos={curva} meta={st.meta} />
+        <DoseChart pontos={curva} meta={st.meta} sel={selDose} setSel={setSelDose} />
         <div
           style={{
             display: "flex",
