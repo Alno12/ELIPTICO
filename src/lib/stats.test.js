@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcularStats, escala, escalaFacil, montarSemana, montarJanela } from "./stats.js";
+import { calcularStats, escala, escalaFacil, montarSemana, montarJanela, curvaDose } from "./stats.js";
 import { iso, mondayOf } from "./datas.js";
 
 const CFG = {
@@ -384,5 +384,85 @@ describe("montarJanela", () => {
   it("histórico vazio devolve zeros, não NaN", () => {
     const j = montarJanela([]);
     expect([j.minutos, j.carga, j.equiv, j.sessoes]).toEqual([0, 0, 0, 0]);
+  });
+});
+
+
+/* A curva da dose: a janela de 7 dias avaliada em cada um dos últimos N dias. É
+   a mesma conta de `montarJanela` repetida no tempo, e o risco é o mesmo — errar
+   a fronteira por um dia não aparece na tela, só deixa a curva torta. */
+describe("curvaDose", () => {
+  const diasAtras = (n) => {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() - n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const treino = (n, z2) => ({
+    id: `c${n}`,
+    date: diasAtras(n),
+    zones: { z1: 0, z2, z3: 0, z4: 0, z5: 0 },
+    total: z2,
+    avgHr: null,
+    maxHr: null,
+    rpe: null,
+    notes: "",
+  });
+
+  it("devolve um ponto por dia, terminando hoje", () => {
+    const c = curvaDose([treino(1, 30)], 30);
+    expect(c).toHaveLength(30);
+    expect(c[29].date).toBe(diasAtras(0));
+    expect(c[0].date).toBe(diasAtras(29));
+  });
+
+  it("cada ponto é a soma dos 7 dias que terminam nele", () => {
+    /* um treino há 3 dias entra em todos os pontos de 3 a 9 dias atrás */
+    const c = curvaDose([treino(3, 30)], 12);
+    const dose = (atras) => c[c.length - 1 - atras].equiv;
+    expect(dose(0), "hoje: o treino de 3 dias atrás ainda está na janela").toBe(30);
+    expect(dose(3), "no próprio dia do treino").toBe(30);
+    expect(dose(4), "um dia antes do treino: ainda não aconteceu").toBe(0);
+  });
+
+  it("o treino sai da janela no oitavo dia, não no sétimo", () => {
+    const c = curvaDose([treino(0, 30)], 12);
+    /* o ponto de hoje inclui; o de 7 dias adiante não existe ainda, então
+       conferimos pelo caminho inverso: um treino de 6 dias atrás ainda conta */
+    expect(c.at(-1).equiv).toBe(30);
+    expect(curvaDose([treino(6, 30)], 3).at(-1).equiv, "6 dias atrás: dentro").toBe(30);
+    expect(curvaDose([treino(7, 30)], 3).at(-1).equiv, "7 dias atrás: fora").toBe(0);
+  });
+
+  it("conta minutos equivalentes, não minutos brutos", () => {
+    const forte = {
+      id: "f",
+      date: diasAtras(1),
+      zones: { z1: 20, z2: 0, z3: 0, z4: 10, z5: 0 },
+      total: 30,
+      avgHr: null,
+      maxHr: null,
+      rpe: null,
+      notes: "",
+    };
+    /* Z1 não conta, Z4 vale 2x: 30 min de treino viram 20 equivalentes */
+    expect(curvaDose([forte], 3).at(-1).equiv).toBe(20);
+  });
+
+  it("o último ponto da curva é igual à janela de hoje", () => {
+    const treinos = [treino(0, 10), treino(3, 20), treino(6, 15), treino(9, 99)];
+    expect(curvaDose(treinos, 30).at(-1).equiv).toBe(montarJanela(treinos).equiv);
+  });
+
+  it("histórico vazio devolve a curva toda em zero, não NaN", () => {
+    const c = curvaDose([], 30);
+    expect(c.every((p) => p.equiv === 0)).toBe(true);
+  });
+
+  it("o custo não cresce com o histórico", () => {
+    const muitos = Array.from({ length: 4000 }, (_, i) => treino(i % 900, 30));
+    const t0 = performance.now();
+    curvaDose(muitos, 30);
+    expect(performance.now() - t0, "deve ficar bem abaixo de 50 ms").toBeLessThan(50);
   });
 });
