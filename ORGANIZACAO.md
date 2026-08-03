@@ -1,291 +1,236 @@
-# Reorganização das abas Semana, Tendências e Análise
+# Reorganização das abas — segunda rodada
 
-Proposta de rearranjo do conteúdo das três abas de estatística, com adições, remoções e
-correções. Complementa o `ESTATISTICAS.md`, que trata da correção dos números; aqui a
-pergunta é **onde cada número mora e se ele merece o espaço que ocupa**.
+Substitui a primeira versão deste documento. A v1 está resumida no fim, junto com o
+motivo de eu tê-la abandonado.
+
+Complementa o `ESTATISTICAS.md`, que trata da correção dos números. Aqui a pergunta é
+**onde cada número mora, e se ele merece existir**.
 
 Nada aqui mexe em dado gravado.
 
 ---
 
-## O diagnóstico, medido
+## Primeiro: onde a v1 estava errada
 
-Alturas reais medidas no navegador, viewport de 402×874 (iPhone), com os dados de
-exemplo:
+Quatro críticas à minha própria proposta anterior. Três delas eu confirmei medindo.
 
-| Aba | Altura | Em telas | Cards | Seções |
-|---|---|---|---|---|
-| Semana | 2.856 px | **3,3** | 15 | 7 |
-| Tendências | 3.243 px | **3,7** | 8 | 7 |
-| Análise | 3.783 px | **4,3** | 14 | 6 |
-| Histórico | 874 px | **1,0** | 3 | 2 |
+### C1 · Eu reorganizei por arrumação, não por uso
 
-Quatro achados saem daí, e três deles eu consegui confirmar por medição direta:
+A v1 partia do princípio *"cada aba responde a uma pergunta"*. É um princípio bonito e
+infalsificável — dá para encaixar qualquer conteúdo em qualquer pergunta depois do fato.
+Ele arruma a gaveta sem perguntar se as coisas dentro dela deveriam estar ali.
 
-**1. A aba de check-in diário tem 3,3 telas.** "Semana" é a tela que a pessoa abre depois
-de treinar, para ver se a semana está indo bem. Hoje ela obriga a rolar por recordes
-vitalícios e por um card do mês antes de acabar. É a aba mais usada e a que menos respeita
-o tempo de quem usa.
+### C2 · A v1 dizia que o problema é excesso, e propunha cinco métricas novas
 
-**2. Análise termina em seis cards de leitura automática, um atrás do outro.** Medido — os
-cards da aba, em ordem: Forma atual, Projeção, Gestão de carga, Intensidade, Capacidade e
-zonas, Zonas, Percepção, e então **Carga bem distribuída · Boa base de intensidade leve ·
-FC caindo · Treinos ficaram mais densos · Quase nada em Zona 5 · Abaixo da recomendação**.
-Seis parágrafos de conselho seguidos não são lidos: são rolados.
+Contradição direta. Se o diagnóstico é "está cheio demais", adicionar cinco só se
+justifica se cada uma substituir algo — e a v1 não dizia o que sairia no lugar.
 
-**3. O seletor 7 / 30 / 90 D move um gráfico de sete.** Medido comparando a assinatura de
-todos os `<svg>` da aba antes e depois de trocar de 30 D para 90 D: dos **7 gráficos, 1
-mudou**. Os outros seis são fixos em 28 dias, 17 semanas ou vida inteira. O controle está
-no topo da aba, sugerindo que governa a aba.
+### C3 · A maquete foi desenhada com dados que a favoreciam
 
-**4. Os dois cards de "últimos 7 dias" mostram os mesmos quatro números.** Esse é meu:
-o card que fizemos ontem tem minutos, treinos, carga e minutos equivalentes; o grid "Esta
-semana", trinta pixels abaixo, tem exatamente os mesmos quatro, só que na semana do
-calendário. Resolvi o problema da segunda-feira e deixei a duplicação na tela.
+Inventei números curtos e cards enxutos. **Medido** sobre a própria maquete: o total do
+app cairia de 12,3 para 7,6 telas, −38%. Mas parte disso é a maquete ser menos detalhada
+que a tela real, não a proposta ser melhor. Uma redução de 38% é o mínimo que qualquer
+rearranjo produz; não prova nada.
 
----
+### C4 · A v1 não tocou no problema principal — e eu só o encontrei nesta rodada
 
-## Como cheguei à proposta
+**Medido**, aba Análise:
 
-O pedido foi trabalhar em loop. Foram três passagens, e vale registrar as duas que
-descartei — elas explicam por que a terceira é o que é.
-
-**Passagem 1 — organizar por horizonte de tempo.** Semana = dias, Tendências = semanas,
-Análise = o modelo. Descartei: sobravam duas coisas sem casa (o card do mês e a
-consistência histórica), e a aba Semana ficava com dois cards. Além disso exigia renomear
-abas, que é custo alto para ganho de arrumação.
-
-**Passagem 2 — mover tudo que é histórico para a aba Histórico.** Melhor: aproveita a aba
-mais vazia do app e é semanticamente honesto — recordes e totais de vida inteira *são* o
-histórico. Mas Tendências inchava para dez blocos ao receber o que saía de Semana.
-
-**Passagem 3 — a que ficou.** A passagem 2 mais três fusões que eu não tinha visto: os
-dois cards de sete dias viram um, os dois gráficos de zona por semana viram um, e a tabela
-"Semana a semana" sai porque repete em texto o que dois gráficos já mostram. Com isso
-Tendências volta a sete blocos e Análise cai para seis.
-
-**A conclusão que mudou entre a passagem 1 e a 3:** o problema nunca foi a divisão em
-quatro abas. As quatro perguntas que o app responde — *como estou agora, estou melhorando,
-devo mudar algo, o que eu fiz* — mapeiam bem nas quatro abas que existem. O problema é que
-o conteúdo foi crescendo na aba errada.
-
----
-
-## Princípio
-
-> Cada aba responde a **uma** pergunta, e **nenhum número aparece em duas abas**.
-
-| Aba | Pergunta | Janela |
-|---|---|---|
-| Semana | Como estou indo agora? | dias |
-| Tendências | Estou melhorando? | semanas e meses |
-| Análise | Devo mudar alguma coisa? | interpretação |
-| Histórico | O que eu fiz? | tudo |
-
----
-
-## Semana — de 15 cards para 5
-
-**O que fica**
-
-1. **Card herói** — a semana do calendário, com navegação, faixa de dias e barra de meta.
-   Sem mudança.
-2. **Os quatro números, uma vez só.** Fundir o card "Últimos 7 dias" com o grid "Esta
-   semana". A janela móvel vence: ela não zera na segunda-feira, e é a que responde
-   "como estou indo agora". O card herói continua sendo o calendário, porque é ele que
-   tem a faixa de dias e a navegação.
-3. **Distribuição por zona na semana.** Sem mudança.
-4. **NOVO — "O que falta".** Ver adições, N1.
-5. **NOVO — "Há N dias sem intensidade".** Ver adições, N2.
-
-**O que sai, e para onde**
-
-| Bloco | Vai para | Por quê |
-|---|---|---|
-| Consistência (heatmap + sequência) | Tendências | um mapa de calor de meses não é uma pergunta sobre esta semana |
-| As 6 linhas de médias | Tendências | médias de vida inteira, mesma razão |
-| Este mês (4 tiles) | Tendências | não é semana |
-| Recordes | Histórico | é o resumo do registro |
-| Desde o início | Histórico | idem |
-
-**Resultado estimado:** de 3,3 telas para cerca de 1,5. A aba mais aberta do app passa a
-caber quase inteira sem rolar.
-
----
-
-## Tendências — o seletor passa a valer
-
-**A mudança central:** o seletor 7 / 30 / 90 D governa a aba inteira. Todo gráfico que
-aceita uma janela passa a obedecê-lo. O que não aceita — porque é por definição de outra
-janela — sai da aba ou perde o seletor de forma explícita.
-
-**O que fica**
-
-1. **Minutos por zona** (obedece ao seletor, já obedece hoje).
-2. **Zonas por semana, com alternador.** Fundir "Evolução da distribuição" e "Proporção de
-   intensidade": são o mesmo dado, um normalizado em 100% e o outro em minutos absolutos.
-   Um card com dois botões — *proporção* / *minutos* — em vez de dois cards com dois
-   gráficos.
-3. **Carga semanal** (LoadChart, com a média móvel).
-4. **Perfil semanal** (minutos médios por dia da semana).
-5. **Eficiência cardíaca**, corrigida — ver melhorias, M5.
-6. **Consistência**, vinda de Semana: heatmap, sequência e as médias.
-7. **Este mês**, vindo de Semana.
-
-**O que sai**
-
-| Bloco | Por quê |
+| | |
 |---|---|
-| Volume acumulado (28 d vs 28 d) | mesma comparação que "Este mês" e que a carga semanal fazem, num terceiro formato |
-| Semana a semana (10 linhas) | repete em tabela o que o LoadChart e o gráfico de zonas já desenham |
+| Altura total da aba | 3.783 px — **4,3 telas** |
+| Onde começa a seção "Leituras" | 2.592 px — **3,0 telas de rolagem** |
+| Posição relativa | depois de **69%** da aba mais longa do app |
+| Leituras exibidas | 6 cards · 1.181 caracteres · ~71 s de leitura |
+
+**O motor de leituras é a única parte do app que diz o que fazer** — e está enterrado a
+três telas de rolagem dentro da aba que ninguém abre por hábito. Tudo que vem antes dele
+descreve; só ele aconselha.
+
+A v1 encolhia a Análise de 4,3 para 2,4 telas e **deixava as leituras no mesmo lugar
+relativo**: no fim. Arrumei a casa e mantive o que importa no último cômodo.
 
 ---
 
-## Análise — de 14 cards para 6
+## A pergunta que eu não tinha feito
 
-**O que fica**
+Não *"onde cada número mora"*, mas: **quantos destes números mudam alguma decisão?**
 
-1. **Forma atual** — com o TSB corrigido para fechar com aptidão menos fadiga
-   (`ESTATISTICAS.md` 1.1) e a aptidão semeada (2.2).
-2. **Projeção de aptidão** — herda as duas correções acima.
-3. **Gestão de carga** — razão aguda/crônica desacoplada e com porta de 21 dias,
-   carga crônica, variação semanal em coeficiente de variação.
-4. **Intensidade** — densidade, minutos equivalentes em 28 dias, **tempo fácil dos últimos
-   28 dias** (hoje é vitalício e contradiz o comportamento recente), reserva cardíaca.
-5. **Percepção de esforço** — correlação de postos contra densidade.
-6. **Leituras: no máximo três**, escolhidas por relevância, e as demais atrás de um
-   "ver mais". Seis parágrafos seguidos não são lidos.
+Levantei os **58 números distintos** que as três abas exibem e apliquei um teste único:
+*se este valor mudasse, eu treinaria diferente na semana que vem?*
 
-**O que sai**
-
-| Item | Destino | Por quê |
+| Categoria | Quantos | O que são |
 |---|---|---|
-| Capacidade e zonas (VO₂, MET, FC máx, repouso, faixas) | **Ajustes** | VO₂ máx é digitado pelo usuário em Ajustes, com padrão 41,8. Exibi-lo de volta como "aptidão cardiorrespiratória excelente" é devolver o palpite da pessoa em forma de diagnóstico. As faixas de bpm são configuração. |
-| Strain | remover | `ESTATISTICAS.md` 2.6 — a nota diz que só serve para comparar semanas, e o app nunca mostra outra semana |
-| Monotonia | remover ou consertar | 2.4 — com 3 dias de descanso ela fica presa no verde; medido 1,14 |
-| Contínuos e intervalados | remover | contagem vitalícia; nos dados de exemplo ela muda uma vez a cada poucas semanas |
+| **Decide** | **6** | mudam o que você faz |
+| **Contextualiza** | 14 | explicam por que, mas não pedem ação |
+| **Recompensa** | 13 | recordes e totais: existem pelo prazer de olhar |
+| **Ruído** | **25** | não decidem, não explicam, não recompensam |
 
-**Resultado estimado:** de 4,3 telas para cerca de 2.
+### Os 6 que decidem
 
----
+1. **Minutos equivalentes contra a meta da semana** — treinar mais ou não
+2. **Dias desde o último treino** — treinar hoje ou não
+3. **Tempo fácil da janela recente** — deixar o treino de amanhã mais leve
+4. **Razão aguda/crônica corrigida** — segurar ou subir o volume
+5. **Dias sem sessão de intensidade** — incluir intensidade
+6. **FC média em sessões comparáveis** — confirma que está funcionando
 
-## Histórico — deixa de ser uma tela só
+Cinco desses seis **já existem** no app. Nenhum deles está numa posição que se leia sem
+rolar.
 
-Recebe **Recordes** e **Desde o início**, que hoje ficam no fim da aba Semana. Passa de
-1,0 para cerca de 2 telas, e a aba mais vazia do app deixa de ser vazia.
+### Os 25 de ruído, nomeados
 
----
+`Strain` (sem régua, ver `ESTATISTICAS.md` 2.6) · `Monotonia` (presa no verde, 2.4) ·
+`VO₂ máx` e `MET` (eco do que você digitou em Ajustes) · `FC máx`, `FC repouso`,
+`Reserva cardíaca` (idem) · `Faixas de zona em bpm` (configuração) ·
+`Contínuos e intervalados` (**aparece duas vezes, em abas diferentes**) ·
+`Reserva cardíaca usada` (61%, praticamente constante) · `Variação semanal` ·
+`Correlação RPE` · `Projeção de aptidão`, três cenários · `Volume acumulado 28 d` ·
+`Semana a semana`, 10 linhas · `Projeção do mês` (1.4 do `ESTATISTICAS.md`) ·
+`Densidade, delta` · `Maior sequência` · `FC máxima registrada` · `Duração média` ·
+`Dia que você mais treina` · `Carga acumulada` · `Minutos totais` · `Primeiro registro`
 
-## Estatísticas novas
+### E a duplicação que eu não tinha visto
 
-Cinco. Cada uma existe para responder algo que hoje fica sem resposta.
+**Minutos equivalentes aparecem em seis lugares:** barra de meta do herói, tile de
+Últimos 7 dias, tile de Esta semana, tile de Este mês, linha de Desde o início, e
+"Minutos equivalentes, 28 dias" na Análise. Seis janelas da mesma grandeza, três delas
+na mesma tela.
 
-### N1 · "O que falta" — na aba Semana
-
-Traduz a meta em ação. Hoje a barra mostra *0 de 150 min equivalentes · 0%*. A pergunta
-que sobra é sempre a mesma: **quanto isso é em treinos?**
-
-> Faltam **44 min equivalentes**. Dois treinos como os seus últimos resolvem.
-
-O segundo número vem da mediana dos minutos equivalentes das últimas 8 sessões — mediana,
-não média, para um treino atípico não distorcer. É a única estatística proposta aqui que
-diz o que fazer em vez de descrever o que foi feito.
-
-### N2 · Dias desde a última sessão com intensidade — na aba Semana
-
-Uma sessão conta quando soma 4 min ou mais em Z4 e Z5, o mesmo corte que o app já usa para
-classificar intervalados.
-
-Hoje existe a leitura "Quase nada em Zona 5", que é vitalícia e não muda de uma semana
-para outra. Um contador vivo — *"há 11 dias sem uma sessão de intensidade"* — responde a
-mesma preocupação com um número que anda.
-
-### N3 · Tempo fácil dos últimos 28 dias — na aba Análise
-
-É correção e adição ao mesmo tempo. Medido: o número vitalício mostra **81,6%** — verde,
-"boa base" — enquanto os últimos 28 dias somam **72,7%**, faixa em que o app daria o
-conselho oposto. E quatro semanas treinando 100% em Z1 movem o vitalício apenas 4,4
-pontos. Com janela de 28 dias ele passa a ser uma estatística de verdade, e não uma
-constante.
-
-### N4 · Regularidade — na aba Tendências
-
-**% das últimas 12 semanas com pelo menos 3 treinos.**
-
-Substitui a sequência de semanas, que é generosa demais: um único treino mantém a
-sequência viva, então ela mede "apareceu" e não "manteve a rotina". A regularidade
-distingue quem faz três a quatro treinos por semana de quem faz um.
-
-### N5 · FC média em sessões comparáveis — na aba Tendências
-
-O gráfico de eficiência cardíaca compara a FC média de sessões contínuas ao longo do
-tempo. O problema é que a FC média depende da mistura de zonas: uma queda pode significar
-condicionamento melhor **ou** treinos mais fáceis.
-
-A proposta é restringir o gráfico a sessões cuja densidade fique dentro de ± 0,15 da
-mediana — sessões parecidas entre si. Aí a queda de FC significa uma coisa só.
-
-Nos dados de exemplo o confundidor não está ativo (densidade 1,92 na primeira sessão da
-janela e 1,98 na última), então isto é blindagem, não correção de erro presente.
+**"Contínuos e intervalados" aparece duas vezes, em abas diferentes** — em "Desde o
+início" (Semana) e em "Intensidade" (Análise), com o mesmo valor vitalício.
 
 ---
 
-## Melhorias nas que ficam
+## O princípio, refeito
 
-Sete, quase todas vindas da auditoria. Ordenadas por relação entre ganho e esforço.
+A v1 dizia: *uma pergunta por aba*. Errado, porque trata os 58 números como iguais e só
+discute a gaveta.
 
-| # | Métrica | Mudança | Origem |
+> **v2: o app tem três camadas de profundidade, e a primeira tem que caber numa tela
+> sem rolar.**
+
+| Camada | O que é | Onde vive | Quanto ocupa |
 |---|---|---|---|
-| M1 | Forma | passar a fechar com aptidão − fadiga | `ESTATISTICAS.md` 1.1 |
-| M2 | Tempo fácil | janela de 28 dias | 2.1 / N3 |
-| M3 | Razão aguda/crônica | denominador desacoplado + porta de 21 dias | 1.2 e 2.3 |
-| M4 | Aptidão | semear em vez de partir de zero | 2.2 |
-| M5 | Eficiência cardíaca | sessões comparáveis | N5 |
-| M6 | Variação semanal | coeficiente de variação em vez de desvio absoluto | 2.7 |
-| M7 | Percepção de esforço | Spearman contra densidade | 2.5 |
+| **1 · Decide** | os 6 números que mudam a semana | topo da aba Semana | **uma tela** |
+| **2 · Contextualiza** | gráficos e séries, para entender o porquê | Tendências e Análise | livre |
+| **3 · Recompensa** | recordes e totais | Histórico | livre |
 
-Duas fora da auditoria:
-
-**M8 — a barra de meta ganha o ritmo esperado.** Hoje ela mostra o quanto foi feito. A
-mesma barra pode mostrar, num tom mais claro, onde a pessoa *deveria* estar hoje se
-distribuísse a meta pelos dias da semana. Transforma "0%" em "atrasado dois dias" sem
-texto nenhum.
-
-**M9 — o heatmap ganha uma escala.** Ele desenha intensidade por cor e não diz o que cada
-tom vale. Três quadradinhos e dois rótulos resolvem.
+O ruído não ganha camada. Sai.
 
 ---
 
-## O que eu não faria
+## A mudança de maior impacto
 
-Registrado para não voltar como sugestão:
+**As leituras sobem para o topo da aba Semana, comprimidas em três linhas.**
 
-- **Não renomear as abas.** A passagem 1 pedia isso e o ganho não paga. Os quatro nomes
-  atuais descrevem bem as quatro perguntas, desde que o conteúdo obedeça.
-- **Não adicionar VO₂ máx estimado.** Seria possível estimar a partir de FC de repouso e
-  idade, mas o app não pede idade, e trocar um palpite digitado por um palpite calculado
-  não é ganho.
-- **Não somar nenhuma métrica nova de carga.** TRIMP, aptidão, fadiga, forma, razão
-  aguda/crônica e densidade já são seis maneiras de dizer "quanto você treinou". O
-  problema desta aba é excesso, não falta.
-- **Não mexer na deriva cardíaca nem em nada intra-sessão.** O app guarda minutos por zona,
-  não a série de batimentos. Qualquer métrica desse tipo exigiria mudar o que é registrado.
+Hoje: 6 cards de parágrafo, 71 segundos de leitura, a 3 telas de rolagem dentro da aba
+mais longa.
+
+Proposta: um card no alto da primeira aba, com **três linhas de uma frase cada**, cor de
+estado à esquerda, e um toque para abrir o texto completo. O mesmo motor, a mesma
+qualidade de escrita — a 0 pixels de rolagem em vez de 2.592.
+
+Isto sozinho muda mais a experiência do que toda a reorganização da v1.
+
+---
+
+## As abas, na v2
+
+### Semana — a camada 1
+
+1. **Card de leituras** — três linhas. Novo lugar, motor existente.
+2. **Card herói** — semana, faixa de dias, barra de meta com a marca do ritmo esperado.
+3. **Os quatro números, uma vez só** — hoje aparecem duas vezes na mesma tela.
+4. **Distribuição por zona da semana.**
+
+Saem: Consistência, médias, Este mês, Recordes, Desde o início.
+
+### Tendências — a camada 2, o que aconteceu
+
+Seletor 7/30/90 valendo para a aba inteira (hoje move 1 gráfico de 7) · Minutos por
+zona · Zonas por semana com alternador *proporção / minutos* (dois cards de hoje viram
+um) · Carga semanal · Perfil semanal · Eficiência cardíaca corrigida · Consistência,
+vinda de Semana.
+
+Saem: Volume acumulado, Semana a semana, Este mês (vira uma linha na Consistência).
+
+### Análise — a camada 2, o que isso significa
+
+Forma (com o TSB que fecha) · Projeção · Gestão de carga: razão aguda/crônica
+desacoplada, carga crônica · Intensidade: densidade, equivalentes 28 d, tempo fácil de
+28 dias · Leituras completas.
+
+Saem: Capacidade e zonas → **Ajustes** · Strain · Monotonia · Contínuos e intervalados ·
+Variação semanal · Percepção de esforço → só quando houver 15+ registros de RPE, em vez
+de 6.
+
+### Histórico — a camada 3
+
+Recebe Recordes e Desde o início.
+
+---
+
+## Estatísticas novas: duas, não cinco
+
+A v1 propunha cinco. Cortei três, porque violavam o próprio diagnóstico.
+
+**N1 · "O que falta"** — *"faltam 44 min equivalentes; dois treinos como os seus últimos
+resolvem"*. É a única estatística do app que diz o que fazer. **Substitui** a linha
+"Semanas que bateram a meta", que é retrospectiva.
+
+**N2 · Dias sem sessão de intensidade** — contador vivo. **Substitui** a leitura "Quase
+nada em Zona 5", que é vitalícia e não muda de semana para semana.
+
+**Cortadas da v1:** *Regularidade* (é contexto, não decisão — e já há heatmap, sequência
+e média de treinos medindo a mesma coisa), *Tempo fácil de 28 dias* (é correção,
+`ESTATISTICAS.md` 2.1, não estatística nova), *FC em sessões comparáveis* (idem, é
+correção do gráfico existente).
+
+---
+
+## O que testei nesta rodada e descartei
+
+**Fundir Tendências e Análise em uma aba só.** As duas são camada 2 e se sobrepõem em
+carga, intensidade e frequência cardíaca. Descartei por dois motivos, um fraco e um
+forte:
+
+- *fraco:* a aba fundida daria ~4 telas, longa demais mesmo para leitura ocasional;
+- *forte:* **o botão + fica no centro da barra**, entre duas abas de cada lado. Com três
+  abas a simetria quebra e o botão de registrar — a ação mais frequente do app — sai do
+  centro. Não vale trocar a ergonomia do gesto principal por arrumação.
+
+**Renomear as abas.** Testado na v1 e descartado de novo. Os nomes descrevem bem as três
+camadas, desde que o conteúdo obedeça.
 
 ---
 
 ## Ordem sugerida
 
-**Primeiro, o que é subtração** — não quebra nada e o ganho aparece na hora: fundir os dois
-cards de sete dias, mover Recordes e Desde o início para Histórico, mover Capacidade e
-zonas para Ajustes, remover Strain, "Semana a semana" e "Volume acumulado", limitar as
-leituras a três.
+| # | O quê | Ganho | Risco |
+|---|---|---|---|
+| 1 | Leituras para o topo da Semana, em três linhas | o maior de todos | baixo |
+| 2 | Fundir os dois cards de sete dias | tira a duplicação mais visível | nenhum |
+| 3 | Mover Recordes e Desde o início para Histórico | −1,2 tela na aba mais usada | nenhum |
+| 4 | Remover os 25 de ruído, começando por Capacidade e zonas | −1 tela na Análise | baixo |
+| 5 | Correções do `ESTATISTICAS.md`: M1, M2, M3 | números que param de se contradizer | médio |
+| 6 | Seletor valendo para a aba, fusão dos gráficos de zona | tira a promessa falsa do controle | médio |
+| 7 | N1 e N2 | as duas únicas adições | baixo |
 
-**Depois, as correções que a auditoria já justifica:** M1, M2, M3.
+Os quatro primeiros são subtração e mudança de lugar. Não tocam em cálculo nenhum, e
+sozinhos resolvem o que a medição apontou.
 
-**Então as mudanças estruturais:** o seletor valendo para a aba, a fusão dos dois gráficos
-de zona, e a migração de Consistência e Este mês para Tendências.
+---
 
-**Por último, as adições:** N1, N2, N4, e as melhorias M4 a M9.
+## Apêndice — a v1, e por que caiu
 
-Cada bloco é independente e pode virar um PR próprio. O primeiro sozinho já derruba Semana
-de 3,3 para cerca de 2 telas e Análise de 4,3 para 3.
+A v1 propunha o mesmo rearranjo de abas desta versão, mas partia de *"uma pergunta por
+aba"*, adicionava cinco estatísticas, e não mexia na posição das leituras. Ela arrumava
+a distribuição do conteúdo sem perguntar quanto do conteúdo deveria existir.
+
+O que sobreviveu dela: mover Recordes e Desde o início para Histórico, mover Capacidade
+e zonas para Ajustes, fundir os dois cards de sete dias, fundir os dois gráficos de zona,
+fazer o seletor valer para a aba, e as correções vindas da auditoria.
+
+O que morreu: o princípio, três das cinco estatísticas novas, e a ideia de que o problema
+era o arranjo.
