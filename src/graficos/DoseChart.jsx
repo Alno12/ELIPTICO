@@ -151,14 +151,13 @@ function DoseChart({ pontos, meta, sel, setSel }) {
         />
       )}
 
-      <circle cx={x(iAtual)} cy={y(atual.equiv)} r="4.4" fill="#fff" stroke={cor} strokeWidth="2.6" />
+      {/* Sem rótulo escrito na linha da meta.
 
-      {/* desenhado por último e sobre base opaca: a curva cruza a linha da meta
-          com frequência, e é justamente aí que o rótulo ficaria ilegível */}
-      <rect x={W - 47} y={y(meta) - 15} width={47} height={13} rx={3} fill={C.card} opacity="0.94" />
-      <text x={W - 2} y={y(meta) - 5} fontSize="9.5" fill={C.red} textAnchor="end">
-        meta {meta}
-      </text>
+         Ele ficava no canto direito, encostado no ponto de hoje, e tapava
+         justamente o marcador do dia — que é o que o dedo está procurando. Não
+         faz falta: o cabeçalho do card, duas linhas acima, já diz "de 150 min
+         equivalentes", então a tracejada vermelha não precisa se apresentar. */}
+      <circle cx={x(iAtual)} cy={y(atual.equiv)} r="4.4" fill="#fff" stroke={cor} strokeWidth="2.6" />
 
       <text x={pad} y={H + 11} fontSize="9.5" fill={C.ter}>
         {dayjs(pontos[0].date).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
