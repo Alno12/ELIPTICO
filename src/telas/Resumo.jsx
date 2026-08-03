@@ -303,11 +303,29 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
         </div>
       </Card>
 
+      {/* Mesma leitura do card de baixo, na janela móvel. Fora da `transicao` e
+          sem o `offset`, como os outros blocos de sete dias: as setas mudam a
+          semana do calendário, e esta janela continua presa a hoje. */}
+      {/* sem o intervalo à direita: com ele o título quebra em duas linhas, e o
+          card da dose logo acima já mostra as mesmas datas */}
+      <SectionTitle>Distribuição por zona nos últimos 7 dias</SectionTitle>
+      <Card i={3}>
+        <div data-testid="zonas-janela">
+          {jan.grand > 0 ? (
+            <ZoneColumn totals={jan.zonas} grand={jan.grand} cfg={cfg} />
+          ) : (
+            <p style={{ ...s.foot, margin: 0, textAlign: "center", padding: 20 }}>
+              Nenhum treino nos últimos 7 dias.
+            </p>
+          )}
+        </div>
+      </Card>
+
       <SectionTitle>
         Distribuição por zona na semana
         <span style={s.sectionRight}>{offset === 0 ? "esta semana" : rotuloSemana(sem)}</span>
       </SectionTitle>
-      <Card i={3}>
+      <Card i={4}>
         <div>
           <div {...transicao()}>
             {sem.grand > 0 ? (
@@ -324,7 +342,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
       <SectionTitle>{offset === 0 ? "Esta semana" : rotuloSemana(sem)}</SectionTitle>
       <div data-testid="quadros-semana" {...transicao(s.grid)}>
         <Tile
-          i={4}
+          i={5}
           label="Minutos"
           value={fmt(sem.minutos)}
           unit="min"
@@ -332,7 +350,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
           color={C.green}
         />
         <Tile
-          i={5}
+          i={6}
           label="Treinos"
           value={sem.sessoes}
           unit="sessões"
@@ -340,7 +358,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
           color={C.blue}
         />
         <Tile
-          i={6}
+          i={7}
           label="Carga"
           value={fmt(sem.carga)}
           unit="TRIMP"
@@ -348,7 +366,7 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
           color={C.orange}
         />
         <Tile
-          i={7}
+          i={8}
           label="Min. equivalentes"
           value={fmt(sem.equiv)}
           unit="min"
@@ -361,11 +379,11 @@ function Resumo({ st, cfg, sessions, onAjustes }) {
         Consistência
         <span style={s.sectionRight}>{st.streak} semanas seguidas</span>
       </SectionTitle>
-      <Card i={8}>
+      <Card i={9}>
         <Heatmap sessions={sessions} />
       </Card>
 
-      <Card i={9} pad={0}>
+      <Card i={10} pad={0}>
         <Line first label="Média de treinos por semana" value={fmt(st.sessoesPorSemana, 1)} />
         <Line label="Média de minutos por semana" value={`${fmt(st.mediaSemanal)} min`} />
         <Line label="Média de minutos equivalentes" value={`${fmt(st.equivSemanalMedio)} min`} />
