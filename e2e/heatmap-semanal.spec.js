@@ -5,7 +5,10 @@ import { test, expect, abrirCom, treino, diaDaSemana } from "./apoio.js";
    A grade responde "em que dias você treinou" e some com a intensidade: um dia
    puxado e um dia leve viram dois quadrados verdes parecidos. A barra e o número
    devolvem essa dimensão. */
-const grafico = (page) => page.locator("svg").filter({ hasText: "mai" }).first();
+
+/* `rect[rx="4.2"]` é a célula de dia: identifica o mapa sem depender de texto,
+   que muda conforme o mês em que a suíte roda. */
+const mapa = (page) => page.locator('svg:has(rect[rx="4.2"])').first();
 
 const irAoMapa = async (page) => {
   const alvo = page.getByText("Últimas 15 semanas");
@@ -20,13 +23,13 @@ test.describe("carga semanal no mapa de calor", () => {
   test("mostra um número por semana, quinze ao todo", async ({ page }) => {
     await abrirCom(page, [treino(diaDaSemana(2, 1), { z2: 30, z4: 5 })]);
     /* z2 30×2 + z4 5×4 = 80 TRIMP na semana de 2 semanas atrás */
-    const svg = page.locator('svg:has(rect[rx="4.2"])').first();
+    const svg = mapa(page);
     await expect(svg.getByText("80", { exact: true })).toHaveCount(1);
   });
 
   test("semana sem treino aparece como traço, não como zero", async ({ page }) => {
     await abrirCom(page, [treino(diaDaSemana(2, 1), { z2: 30 })]);
-    const svg = page.locator('svg:has(rect[rx="4.2"])').first();
+    const svg = mapa(page);
     /* 14 semanas vazias e 1 com treino */
     await expect(svg.getByText("—", { exact: true })).toHaveCount(14);
   });
@@ -62,7 +65,7 @@ test.describe("carga semanal no mapa de calor", () => {
     await abrirCom(page, [treino(diaDaSemana(2, 1), { z2: 30 })]);
     await irAoMapa(page);
 
-    const svg = page.locator('svg:has(rect[rx="4.2"])').first();
+    const svg = mapa(page);
     const antes = await svg.getByText("60", { exact: true }).getAttribute("font-weight");
     expect(antes, "em repouso nenhuma semana está em destaque").toBe("400");
 
