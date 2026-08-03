@@ -13,6 +13,9 @@ export function montarJanela(sessions, recuo = 0, tamanho = 7) {
   const inicio = iso(daysAgo(recuo * tamanho + tamanho - 1));
   const fim = iso(daysAgo(recuo * tamanho));
   const dentro = sessions.filter((x) => x.date >= inicio && x.date <= fim);
+  const zonas = Object.fromEntries(
+    ZONES.map((z) => [z.id, sum(dentro, (x) => x.zones[z.id] || 0)]),
+  );
   return {
     inicio,
     fim,
@@ -20,6 +23,10 @@ export function montarJanela(sessions, recuo = 0, tamanho = 7) {
     carga: sum(dentro, trimp),
     equiv: sum(dentro, equiv),
     sessoes: dentro.length,
+    zonas,
+    /* soma das zonas, e não `minutos`: é o denominador das porcentagens, e tem de
+       vir da mesma fonte que os numeradores */
+    grand: ZONES.reduce((a, z) => a + zonas[z.id], 0),
   };
 }
 

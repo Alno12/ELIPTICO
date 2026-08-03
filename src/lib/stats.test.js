@@ -466,3 +466,51 @@ describe("curvaDose", () => {
     expect(performance.now() - t0, "deve ficar bem abaixo de 50 ms").toBeLessThan(50);
   });
 });
+
+/* As zonas da janela móvel, que alimentam o card de distribuição dos últimos 7
+   dias. O denominador tem de sair das próprias zonas — usar `minutos` abriria a
+   mesma divergência que o item 1.2 do MELHORIAS já corrigiu no armazenamento. */
+describe("montarJanela: zonas", () => {
+  const diasAtras = (n) => {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() - n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const ses = (n, zones, total) => ({
+    id: `z${n}`,
+    date: diasAtras(n),
+    zones: { z1: 0, z2: 0, z3: 0, z4: 0, z5: 0, ...zones },
+    total: total ?? Object.values(zones).reduce((a, b) => a + b, 0),
+    avgHr: null,
+    maxHr: null,
+    rpe: null,
+    notes: "",
+  });
+
+  it("soma cada zona separadamente", () => {
+    const j = montarJanela([ses(1, { z2: 20, z4: 5 }), ses(3, { z2: 10, z5: 2 })]);
+    expect(j.zonas.z2).toBe(30);
+    expect(j.zonas.z4).toBe(5);
+    expect(j.zonas.z5).toBe(2);
+    expect(j.zonas.z1).toBe(0);
+  });
+
+  it("respeita a mesma fronteira de 7 dias que o resto da janela", () => {
+    const j = montarJanela([ses(6, { z2: 10 }), ses(7, { z2: 99 })]);
+    expect(j.zonas.z2, "o sétimo dia atrás está fora").toBe(10);
+  });
+
+  it("grand é a soma das zonas, não o total gravado", () => {
+    /* total divergente de propósito: 9999 contra 20 min de zona */
+    const j = montarJanela([ses(1, { z2: 20 }, 9999)]);
+    expect(j.grand).toBe(20);
+    expect(j.minutos, "minutos continua lendo o campo total").toBe(9999);
+  });
+
+  it("todas as zonas presentes mesmo sem treino, e grand zero", () => {
+    const j = montarJanela([]);
+    expect(Object.keys(j.zonas).sort()).toEqual(["z1", "z2", "z3", "z4", "z5"]);
+    expect(j.grand).toBe(0);
+  });
+});
