@@ -1,0 +1,769 @@
+{
+  "gerado_em": "2026-08-04",
+  "app": {
+    "nome": "Zonas · Elíptico",
+    "descricao": "PWA de registro de treinos aeróbicos por zona de frequência cardíaca, com análise de carga e tendências.",
+    "idioma": "pt-BR",
+    "plataforma": "PWA instalável, offline, orientado a iPhone"
+  },
+  "pilha": {
+    "interface": "React 18",
+    "build": "Vite 5",
+    "testes_puros": "Vitest",
+    "testes_navegador": "Playwright, viewport de celular, contra o build de produção",
+    "lint": "ESLint 9 flat config + eslint-plugin-react-hooks",
+    "formatacao": "Prettier — src/ deliberadamente no .prettierignore",
+    "entrega": "Netlify, deploy preview por PR",
+    "estado": "useState no App; sem gerenciador de estado",
+    "estilo": "objetos inline num módulo único; sem CSS-in-JS nem framework"
+  },
+  "persistencia": {
+    "onde": "localStorage do navegador",
+    "chaves": {
+      "sessoes": "eliptico:v5:sessoes",
+      "config": "eliptico:v5:config"
+    },
+    "formato": "JSON",
+    "tolerancia": "toda escrita é try/catch; falha vira aviso e a sessão continua em memória",
+    "backup": "exportação e importação em CSV, com deduplicação por data e zonas",
+    "sincronizacao": "nenhuma — os dados vivem só neste navegador"
+  },
+  "metricas_do_codigo": {
+    "arquivos_producao": 35,
+    "linhas_producao": 5262,
+    "arquivos_teste": 19,
+    "linhas_teste": 2905,
+    "testes_unitarios": 191,
+    "testes_navegador": 94,
+    "pacote_kb": 240.81,
+    "pacote_gzip_kb": 76.79,
+    "maior_arquivo": "src/estilos.js"
+  },
+  "camadas": [
+    {
+      "id": "lib",
+      "nome": "Núcleo puro",
+      "papel": "Cálculo, datas, normalização e CSV. Sem React, sem DOM — é o que os testes unitários alcançam.",
+      "cor": "#5E5CE6",
+      "arquivos": 6,
+      "linhas": 708,
+      "densidade_comentario": 6.8
+    },
+    {
+      "id": "raiz",
+      "nome": "Aplicação",
+      "papel": "Estado, roteamento entre abas, armazenamento e a folha de estilos que todos importam.",
+      "cor": "#FF375F",
+      "arquivos": 4,
+      "linhas": 943,
+      "densidade_comentario": 3.8
+    },
+    {
+      "id": "ui",
+      "nome": "Moldura",
+      "papel": "O que envolve as telas: quadro do telefone, barra de abas, folhas modais, cards e o limite de erro.",
+      "cor": "#FF9F0A",
+      "arquivos": 3,
+      "linhas": 637,
+      "densidade_comentario": 2.7
+    },
+    {
+      "id": "telas",
+      "nome": "Telas",
+      "papel": "As quatro abas e as duas folhas modais. Só desenham — nenhuma faz conta.",
+      "cor": "#30D158",
+      "arquivos": 6,
+      "linhas": 1699,
+      "densidade_comentario": 1.4
+    },
+    {
+      "id": "graficos",
+      "nome": "Gráficos",
+      "papel": "Um arquivo por visualização. Recebem dados prontos e devolvem SVG.",
+      "cor": "#5AC8FA",
+      "arquivos": 15,
+      "linhas": 1178,
+      "densidade_comentario": 0.6
+    }
+  ],
+  "arquivos": [
+    {
+      "caminho": "src/App.jsx",
+      "camada": "raiz",
+      "linhas": 271,
+      "exporta": [
+        "AppComRecuperacao"
+      ],
+      "importa": [
+        "src/lib/treino",
+        "src/lib/stats",
+        "src/lib/sessoes",
+        "src/lib/csv",
+        "src/estilos",
+        "src/armazenamento",
+        "src/ui/estrutura",
+        "src/ui/Recuperacao",
+        "src/telas/Resumo",
+        "src/telas/Tendencias",
+        "src/telas/Analise",
+        "src/telas/Historico",
+        "src/telas/RegistrarSheet",
+        "src/telas/Ajustes"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/armazenamento.js",
+      "camada": "raiz",
+      "linhas": 32,
+      "exporta": [
+        "KEY",
+        "KEY_CFG",
+        "DEFAULT_CFG",
+        "store"
+      ],
+      "importa": [],
+      "importado_por": 2
+    },
+    {
+      "caminho": "src/estilos.js",
+      "camada": "raiz",
+      "linhas": 622,
+      "exporta": [
+        "C",
+        "font",
+        "s",
+        "FAIXA_COR",
+        "FAIXA_TXT",
+        "ICONS"
+      ],
+      "importa": [],
+      "importado_por": 24
+    },
+    {
+      "caminho": "src/graficos/CumulativeChart.jsx",
+      "camada": "graficos",
+      "linhas": 52,
+      "exporta": [
+        "CumulativeChart"
+      ],
+      "importa": [
+        "src/estilos"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/graficos/DoseChart.jsx",
+      "camada": "graficos",
+      "linhas": 173,
+      "exporta": [
+        "DoseChart"
+      ],
+      "importa": [
+        "src/lib/util",
+        "src/lib/datas",
+        "src/estilos"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/graficos/Heatmap.jsx",
+      "camada": "graficos",
+      "linhas": 169,
+      "exporta": [
+        "Heatmap"
+      ],
+      "importa": [
+        "src/lib/util",
+        "src/lib/datas",
+        "src/lib/treino",
+        "src/estilos"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/graficos/HrChart.jsx",
+      "camada": "graficos",
+      "linhas": 92,
+      "exporta": [
+        "HrChart"
+      ],
+      "importa": [
+        "src/lib/datas",
+        "src/estilos"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/graficos/IntensityChart.jsx",
+      "camada": "graficos",
+      "linhas": 64,
+      "exporta": [
+        "IntensityChart"
+      ],
+      "importa": [
+        "src/lib/datas",
+        "src/estilos",
+        "src/graficos/topRounded"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/graficos/LoadChart.jsx",
+      "camada": "graficos",
+      "linhas": 75,
+      "exporta": [
+        "LoadChart"
+      ],
+      "importa": [
+        "src/lib/datas",
+        "src/estilos",
+        "src/graficos/topRounded"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/graficos/PmcChart.jsx",
+      "camada": "graficos",
+      "linhas": 87,
+      "exporta": [
+        "PmcChart"
+      ],
+      "importa": [
+        "src/lib/datas",
+        "src/estilos"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/graficos/ProjChart.jsx",
+      "camada": "graficos",
+      "linhas": 48,
+      "exporta": [
+        "ProjChart"
+      ],
+      "importa": [
+        "src/estilos"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/graficos/RpeScatter.jsx",
+      "camada": "graficos",
+      "linhas": 60,
+      "exporta": [
+        "RpeScatter"
+      ],
+      "importa": [
+        "src/lib/util",
+        "src/estilos"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/graficos/WeekStrip.jsx",
+      "camada": "graficos",
+      "linhas": 75,
+      "exporta": [
+        "WeekStrip"
+      ],
+      "importa": [
+        "src/lib/util",
+        "src/lib/datas",
+        "src/lib/treino",
+        "src/estilos"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/graficos/WeekdayChart.jsx",
+      "camada": "graficos",
+      "linhas": 61,
+      "exporta": [
+        "WeekdayChart"
+      ],
+      "importa": [
+        "src/lib/datas",
+        "src/estilos",
+        "src/graficos/topRounded"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/graficos/ZoneBars.jsx",
+      "camada": "graficos",
+      "linhas": 118,
+      "exporta": [
+        "ZoneBars"
+      ],
+      "importa": [
+        "src/lib/util",
+        "src/lib/datas",
+        "src/lib/treino",
+        "src/estilos",
+        "src/graficos/topRounded"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/graficos/ZoneColumn.jsx",
+      "camada": "graficos",
+      "linhas": 40,
+      "exporta": [
+        "ZoneColumn"
+      ],
+      "importa": [
+        "src/lib/util",
+        "src/lib/treino",
+        "src/estilos"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/graficos/ZoneEvolution.jsx",
+      "camada": "graficos",
+      "linhas": 54,
+      "exporta": [
+        "ZoneEvolution"
+      ],
+      "importa": [
+        "src/lib/datas",
+        "src/lib/treino",
+        "src/estilos"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/graficos/topRounded.js",
+      "camada": "graficos",
+      "linhas": 10,
+      "exporta": [
+        "topRounded"
+      ],
+      "importa": [],
+      "importado_por": 4
+    },
+    {
+      "caminho": "src/lib/csv.js",
+      "camada": "lib",
+      "linhas": 76,
+      "exporta": [
+        "parseCsv",
+        "chaveSessao",
+        "sessoesDeCsv"
+      ],
+      "importa": [
+        "src/lib/datas",
+        "src/lib/sessoes",
+        "src/lib/treino"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/lib/datas.js",
+      "camada": "lib",
+      "linhas": 24,
+      "exporta": [
+        "DIAS_CURTO",
+        "DIAS_NOME",
+        "pad2",
+        "iso",
+        "dayjs",
+        "daysAgo",
+        "diffDias",
+        "mondayOf",
+        "longDate",
+        "shortDate"
+      ],
+      "importa": [
+        "src/lib/util"
+      ],
+      "importado_por": 18
+    },
+    {
+      "caminho": "src/lib/sessoes.js",
+      "camada": "lib",
+      "linhas": 78,
+      "exporta": [
+        "normalizarSessao",
+        "normalizarSessoes",
+        "FC_MIN",
+        "FC_MAX",
+        "dataValida"
+      ],
+      "importa": [
+        "src/lib/treino",
+        "src/lib/datas"
+      ],
+      "importado_por": 3
+    },
+    {
+      "caminho": "src/lib/stats.js",
+      "camada": "lib",
+      "linhas": 337,
+      "exporta": [
+        "montarJanela",
+        "curvaDose",
+        "montarSemana",
+        "calcularStats",
+        "escala",
+        "escalaFacil"
+      ],
+      "importa": [
+        "src/lib/util",
+        "src/lib/datas",
+        "src/lib/treino"
+      ],
+      "importado_por": 3
+    },
+    {
+      "caminho": "src/lib/treino.js",
+      "camada": "lib",
+      "linhas": 82,
+      "exporta": [
+        "ZONES",
+        "PESO_EQUIV",
+        "trimp",
+        "totalZ",
+        "equiv",
+        "equivZ",
+        "seed",
+        "faixa"
+      ],
+      "importa": [
+        "src/lib/util",
+        "src/lib/datas"
+      ],
+      "importado_por": 16
+    },
+    {
+      "caminho": "src/lib/util.js",
+      "camada": "lib",
+      "linhas": 111,
+      "exporta": [
+        "sum",
+        "fmt",
+        "clamp",
+        "cap",
+        "desvio",
+        "pearson",
+        "mulberry32",
+        "minSeg",
+        "deMinSeg",
+        "mmss",
+        "soDigitos",
+        "tempoDeDigitos",
+        "minutosDeDigitos",
+        "digitosDeMinutos",
+        "arrumarDigitos"
+      ],
+      "importa": [],
+      "importado_por": 15
+    },
+    {
+      "caminho": "src/main.jsx",
+      "camada": "raiz",
+      "linhas": 18,
+      "exporta": [],
+      "importa": [
+        "src/App"
+      ],
+      "importado_por": 0
+    },
+    {
+      "caminho": "src/telas/Ajustes.jsx",
+      "camada": "telas",
+      "linhas": 104,
+      "exporta": [
+        "Ajustes"
+      ],
+      "importa": [
+        "src/lib/treino",
+        "src/estilos",
+        "src/ui/estrutura",
+        "src/ui/primitivos"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/telas/Analise.jsx",
+      "camada": "telas",
+      "linhas": 392,
+      "exporta": [
+        "Analise"
+      ],
+      "importa": [
+        "src/lib/util",
+        "src/lib/treino",
+        "src/lib/stats",
+        "src/estilos",
+        "src/ui/estrutura",
+        "src/ui/primitivos",
+        "src/graficos/ProjChart",
+        "src/graficos/PmcChart",
+        "src/graficos/RpeScatter"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/telas/Historico.jsx",
+      "camada": "telas",
+      "linhas": 321,
+      "exporta": [
+        "Historico"
+      ],
+      "importa": [
+        "src/lib/util",
+        "src/lib/datas",
+        "src/lib/treino",
+        "src/estilos",
+        "src/ui/estrutura"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/telas/RegistrarSheet.jsx",
+      "camada": "telas",
+      "linhas": 197,
+      "exporta": [
+        "RegistrarSheet"
+      ],
+      "importa": [
+        "src/lib/util",
+        "src/lib/datas",
+        "src/lib/treino",
+        "src/estilos",
+        "src/ui/estrutura",
+        "src/ui/primitivos",
+        "src/lib/sessoes"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/telas/Resumo.jsx",
+      "camada": "telas",
+      "linhas": 491,
+      "exporta": [
+        "Resumo"
+      ],
+      "importa": [
+        "src/lib/util",
+        "src/lib/datas",
+        "src/lib/treino",
+        "src/lib/stats",
+        "src/estilos",
+        "src/ui/estrutura",
+        "src/ui/primitivos",
+        "src/graficos/ZoneColumn",
+        "src/graficos/Heatmap",
+        "src/graficos/WeekStrip",
+        "src/graficos/DoseChart"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/telas/Tendencias.jsx",
+      "camada": "telas",
+      "linhas": 194,
+      "exporta": [
+        "Tendencias"
+      ],
+      "importa": [
+        "src/lib/util",
+        "src/lib/datas",
+        "src/lib/treino",
+        "src/estilos",
+        "src/ui/estrutura",
+        "src/ui/primitivos",
+        "src/graficos/CumulativeChart",
+        "src/graficos/ZoneEvolution",
+        "src/graficos/WeekdayChart",
+        "src/graficos/ZoneBars",
+        "src/graficos/LoadChart",
+        "src/graficos/IntensityChart",
+        "src/graficos/HrChart"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/ui/Recuperacao.jsx",
+      "camada": "ui",
+      "linhas": 118,
+      "exporta": [
+        "LimiteDeErro"
+      ],
+      "importa": [
+        "src/estilos",
+        "src/ui/estrutura",
+        "src/armazenamento"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/ui/estrutura.jsx",
+      "camada": "ui",
+      "linhas": 376,
+      "exporta": [
+        "EstilosBase",
+        "Shell",
+        "Sheet",
+        "Confirmacao",
+        "LargeTitle",
+        "SectionTitle",
+        "Card",
+        "Empty",
+        "TabBar"
+      ],
+      "importa": [
+        "src/lib/treino",
+        "src/estilos"
+      ],
+      "importado_por": 9
+    },
+    {
+      "caminho": "src/ui/primitivos.jsx",
+      "camada": "ui",
+      "linhas": 143,
+      "exporta": [
+        "Tile",
+        "Metric",
+        "LegendItem",
+        "Insight",
+        "Line",
+        "FieldNum",
+        "Segmented"
+      ],
+      "importa": [
+        "src/lib/util",
+        "src/ui/estrutura",
+        "src/estilos"
+      ],
+      "importado_por": 5
+    },
+    {
+      "caminho": "e2e/apoio.js",
+      "camada": "e2e",
+      "linhas": 97,
+      "exporta": [
+        "segundaDe",
+        "diaDaSemana",
+        "treino",
+        "expect",
+        "iso",
+        "lerSessoes",
+        "lerCfg",
+        "testeBruto",
+        "test"
+      ],
+      "importa": [],
+      "importado_por": 0
+    }
+  ],
+  "fluxo_de_dados": [
+    {
+      "passo": 1,
+      "nome": "localStorage",
+      "detalhe": "duas chaves: sessões e configuração",
+      "modulo": "src/armazenamento.js"
+    },
+    {
+      "passo": 2,
+      "nome": "normalizarSessoes",
+      "detalhe": "nada do armazenamento chega ao motor sem passar por aqui: zona ausente vira 0, total é derivado das zonas, FC fora de 30–250 vira nulo, registro irrecuperável é descartado com aviso",
+      "modulo": "src/lib/sessoes.js"
+    },
+    {
+      "passo": 3,
+      "nome": "calcularStats",
+      "detalhe": "puro: entra (sessões, config), sai o objeto de métricas — aptidão, fadiga, forma, razão aguda/crônica, zonas, recordes",
+      "modulo": "src/lib/stats.js"
+    },
+    {
+      "passo": 4,
+      "nome": "montarSemana · montarJanela · curvaDose",
+      "detalhe": "recortes independentes do motor: semana de calendário, janela móvel de 7 dias, e a curva da dose em 30 dias",
+      "modulo": "src/lib/stats.js"
+    },
+    {
+      "passo": 5,
+      "nome": "telas e gráficos",
+      "detalhe": "recebem dados prontos e só desenham",
+      "modulo": "src/telas/ · src/graficos/"
+    },
+    {
+      "passo": 6,
+      "nome": "LimiteDeErro",
+      "detalhe": "rede final: qualquer falha de renderização vira tela de recuperação, com download dos dados brutos antes de limpar",
+      "modulo": "src/ui/Recuperacao.jsx"
+    }
+  ],
+  "metricas_do_treino": [
+    {
+      "nome": "TRIMP",
+      "formula": "soma de minutos por zona, ponderada de 1 a 5",
+      "uso": "aptidão, fadiga, razão aguda/crônica, monotonia",
+      "ressalva": "convenção do próprio app, não a formulação de Banister"
+    },
+    {
+      "nome": "Minutos equivalentes",
+      "formula": "Z1 × 0, Z2 e Z3 × 1, Z4 e Z5 × 2",
+      "uso": "base da meta semanal de 150",
+      "ressalva": "equivalência moderada/vigorosa da recomendação de saúde"
+    },
+    {
+      "nome": "Aptidão (CTL)",
+      "formula": "média exponencial de 42 dias da carga diária",
+      "uso": "linha azul do gráfico de forma",
+      "ressalva": "parte de zero no primeiro treino; ver ESTATISTICAS.md 2.2"
+    },
+    {
+      "nome": "Fadiga (ATL)",
+      "formula": "média exponencial de 7 dias",
+      "uso": "linha laranja",
+      "ressalva": "—"
+    },
+    {
+      "nome": "Forma (TSB)",
+      "formula": "aptidão menos fadiga",
+      "uso": "estado atual",
+      "ressalva": "hoje não fecha com os dois números exibidos; ver ESTATISTICAS.md 1.1"
+    },
+    {
+      "nome": "Razão aguda/crônica",
+      "formula": "carga de 7 dias ÷ média semanal de 28 dias",
+      "uso": "gestão de carga",
+      "ressalva": "janela acoplada; ver ESTATISTICAS.md 2.3"
+    },
+    {
+      "nome": "Dose de 7 dias",
+      "formula": "minutos equivalentes na janela móvel",
+      "uso": "card da dose e curva de 30 dias",
+      "ressalva": "não zera na segunda-feira"
+    }
+  ],
+  "qualidade": {
+    "ci": [
+      "npm ci",
+      "npm run lint",
+      "npm run format:check",
+      "npm test",
+      "npm run build",
+      "playwright install chromium",
+      "npm run e2e"
+    ],
+    "politica_de_teste": "qualquer erro de runtime ou no console reprova o teste de navegador, mesmo que as asserções passem",
+    "verificacao_de_conserto": "cada correção é conferida por mutação: desfaz-se o conserto e confirma-se que o teste correspondente reprova",
+    "documentos": [
+      "MELHORIAS.md — dívidas e melhorias, com o que já foi resolvido",
+      "ESTATISTICAS.md — auditoria dos números, com medições",
+      "ORGANIZACAO.md — proposta de reorganização das abas"
+    ]
+  },
+  "limites_conhecidos": [
+    "Sem sincronização entre dispositivos: os dados vivem no localStorage de um navegador",
+    "maximum-scale=1 no viewport, mantido por decisão para evitar zoom acidental nos campos numéricos",
+    "Sem modo escuro, por decisão",
+    "React responde por 63% do pacote comprimido",
+    "calcularStats é O(n) por render e leva ~100 ms com 5.000 treinos"
+  ]
+}

@@ -17,3 +17,8 @@ src/
 
 # metatags em ordem deliberada
 index.html
+
+# Gerados por `npm run arquitetura`. Formatá-los daria um diff a cada execução,
+# e o formato deles é decidido pelo gerador, não pelo Prettier.
+arquitetura.html
+arquitetura.json

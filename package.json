@@ -12,7 +12,8 @@
     "e2e:ui": "playwright test --ui",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "arquitetura": "node scripts/arquitetura.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
