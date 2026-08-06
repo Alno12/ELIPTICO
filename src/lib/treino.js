@@ -78,4 +78,4 @@ function faixa(cfg, i) {
   return `${calc(pc[0])}–${calc(pc[1])}`;
 }
 
-export { ZONES, PESO_EQUIV, trimp, totalZ, equiv, equivZ, seed, faixa };
+export { ZONES, PESO_EQUIV, trimp, totalZ, cargaZ, equiv, equivZ, seed, faixa };

@@ -38,9 +38,9 @@ export default [
     },
   },
 
-  /* testes e arquivos de configuração rodam no Node */
+  /* testes, scripts e arquivos de configuração rodam no Node */
   {
-    files: ["**/*.test.js", "e2e/**/*.js", "*.config.js"],
+    files: ["**/*.test.js", "e2e/**/*.js", "*.config.js", "scripts/**/*.mjs"],
     languageOptions: { globals: { ...globals.node } },
   },
 

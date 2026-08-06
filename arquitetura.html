@@ -1,0 +1,417 @@
+<meta charset="utf-8">
+<title>Arquitetura — Zonas · Elíptico</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --tinta:#16161A; --sec:#5A5A63; --ter:#8A8A93; --linha:#E2E2E8;
+    --fundo:#F4F4F7; --papel:#FFFFFF; --sombra:0 1px 2px rgba(0,0,0,.04),0 10px 24px -14px rgba(0,0,0,.12);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--tinta:#F2F2F5;--sec:#A8A8B2;--ter:#76767F;--linha:#2C2C33;--fundo:#0F0F12;--papel:#18181C;
+          --sombra:0 1px 2px rgba(0,0,0,.4),0 10px 24px -14px rgba(0,0,0,.6)}
+  }
+  :root[data-theme="dark"]{--tinta:#F2F2F5;--sec:#A8A8B2;--ter:#76767F;--linha:#2C2C33;--fundo:#0F0F12;--papel:#18181C;
+          --sombra:0 1px 2px rgba(0,0,0,.4),0 10px 24px -14px rgba(0,0,0,.6)}
+  :root[data-theme="light"]{--tinta:#16161A;--sec:#5A5A63;--ter:#8A8A93;--linha:#E2E2E8;--fundo:#F4F4F7;--papel:#FFFFFF;
+          --sombra:0 1px 2px rgba(0,0,0,.04),0 10px 24px -14px rgba(0,0,0,.12)}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--fundo);color:var(--tinta);
+       font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       -webkit-font-smoothing:antialiased}
+  .env{max-width:1080px;margin:0 auto;padding:44px 22px 90px}
+  h1{font-size:31px;letter-spacing:-.9px;margin:0 0 6px;font-weight:700}
+  .sub{color:var(--sec);font-size:15.5px;max-width:660px;margin:0 0 6px}
+  .stamp{color:var(--ter);font-size:12.5px;margin-bottom:34px}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.9px;color:var(--ter);
+     font-weight:700;margin:46px 0 14px;padding-bottom:9px;border-bottom:1px solid var(--linha)}
+  .cartao{background:var(--papel);border:1px solid var(--linha);border-radius:14px;padding:18px 20px;box-shadow:var(--sombra)}
+  .placar{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:11px}
+  .placar .n{font-size:27px;font-weight:700;letter-spacing:-.9px;line-height:1.1}
+  .placar .r{font-size:12px;color:var(--sec);margin-top:2px}
+  .pilha{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:11px}
+  .lin{display:flex;gap:11px;padding:9px 0;border-top:1px solid var(--linha);font-size:14px}
+  .lin:first-child{border-top:none}
+  .lin dt{color:var(--sec);width:132px;flex-shrink:0}
+  .lin dd{margin:0;flex:1}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+  code{background:color-mix(in srgb,var(--tinta) 7%,transparent);padding:1.5px 5px;border-radius:5px}
+  /* camadas */
+  .camada{background:var(--papel);border:1px solid var(--linha);border-radius:14px;overflow:hidden;
+          margin-bottom:11px;box-shadow:var(--sombra)}
+  .camada > header{display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer;user-select:none}
+  .camada .faixa{width:4px;align-self:stretch;border-radius:99px;flex-shrink:0}
+  .camada h3{margin:0;font-size:16px;letter-spacing:-.3px;font-weight:650}
+  .camada .met{margin-left:auto;font-size:12.5px;color:var(--ter);white-space:nowrap;display:flex;gap:12px}
+  .camada p{margin:0 18px 12px 34px;color:var(--sec);font-size:13.5px;max-width:720px}
+  .camada .corpo{display:none;border-top:1px solid var(--linha);padding:4px 0}
+  .camada.aberta .corpo{display:block}
+  .camada .seta{color:var(--ter);transition:transform .18s;font-size:13px}
+  .camada.aberta .seta{transform:rotate(90deg)}
+  .arq{display:flex;align-items:baseline;gap:12px;padding:7px 18px 7px 34px;font-size:13.5px;border-top:1px solid var(--linha)}
+  .arq:first-child{border-top:none}
+  .arq .cam{flex:1;min-width:0}
+  .arq .exp{color:var(--ter);font-size:11.5px;display:block;margin-top:1px;
+            overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .arq .num{color:var(--sec);font-variant-numeric:tabular-nums;font-size:12.5px;white-space:nowrap}
+  .pin{display:inline-block;font-size:10.5px;font-weight:700;padding:1.5px 6px;border-radius:5px;
+       background:color-mix(in srgb,var(--tinta) 8%,transparent);color:var(--sec);white-space:nowrap}
+  /* fluxo */
+  .fluxo{counter-reset:p}
+  .passo{display:flex;gap:14px;padding:13px 0;border-top:1px solid var(--linha)}
+  .passo:first-child{border-top:none}
+  .passo .bolha{width:26px;height:26px;border-radius:99px;background:color-mix(in srgb,var(--tinta) 9%,transparent);
+                display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;flex-shrink:0}
+  .passo b{display:block;font-size:14.5px;letter-spacing:-.2px}
+  .passo span{color:var(--sec);font-size:13px}
+  .passo .mod{color:var(--ter);font-size:11.5px;display:block;margin-top:3px}
+  table{border-collapse:collapse;width:100%;font-size:13.5px}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--ter);
+     padding:0 10px 9px 0;font-weight:700;border-bottom:1px solid var(--linha)}
+  td{padding:10px 10px 10px 0;border-bottom:1px solid var(--linha);vertical-align:top}
+  td:first-child{font-weight:600;white-space:nowrap}
+  .rv{color:var(--sec);font-size:12.5px}
+  ul.lim{margin:0;padding-left:19px;color:var(--sec);font-size:13.5px}
+  ul.lim li{margin:6px 0}
+  .grafo{overflow-x:auto}
+  .grafo svg{display:block;min-width:600px}
+  .dica{color:var(--ter);font-size:12px;margin-top:9px}
+</style>
+
+<div class="env">
+<h1>Arquitetura — Zonas · Elíptico</h1>
+<p class="sub">PWA de registro de treinos aeróbicos por zona de frequência cardíaca, com análise de carga e tendências.</p>
+<p class="stamp">Levantado do código em 2026-08-06 · 37 arquivos de produção · 5.710 linhas</p>
+
+<h2>Em números</h2>
+<div class="cartao placar">
+  <div><div class="n">5.710</div><div class="r">linhas de produção</div></div><div><div class="n">3.274</div><div class="r">linhas de teste</div></div><div><div class="n">191</div><div class="r">testes unitários</div></div><div><div class="n">94</div><div class="r">testes de navegador</div></div><div><div class="n">76.79 kB</div><div class="r">pacote comprimido</div></div><div><div class="n">5</div><div class="r">camadas</div></div>
+</div>
+
+<h2>Pilha</h2>
+<div class="cartao">
+  <div class="lin"><dt>interface</dt><dd>React 18</dd></div><div class="lin"><dt>build</dt><dd>Vite 5</dd></div><div class="lin"><dt>testes puros</dt><dd>Vitest</dd></div><div class="lin"><dt>testes navegador</dt><dd>Playwright, viewport de celular, contra o build de produção</dd></div><div class="lin"><dt>lint</dt><dd>ESLint 9 flat config + eslint-plugin-react-hooks</dd></div><div class="lin"><dt>formatacao</dt><dd>Prettier — src/ deliberadamente no .prettierignore</dd></div><div class="lin"><dt>entrega</dt><dd>Netlify, deploy preview por PR</dd></div><div class="lin"><dt>estado</dt><dd>useState no App; sem gerenciador de estado</dd></div><div class="lin"><dt>estilo</dt><dd>objetos inline num módulo único; sem CSS-in-JS nem framework</dd></div>
+</div>
+
+<h2>Camadas — toque para abrir</h2>
+<div class="camada" onclick="this.classList.toggle('aberta')">
+    <header>
+      <div class="faixa" style="background:#5E5CE6"></div>
+      <h3>Núcleo puro</h3>
+      <span class="pin">lib</span>
+      <span class="met"><span>6 arquivos</span><span>797 linhas</span><span class="seta">›</span></span>
+    </header>
+    <p>Cálculo, datas, normalização e CSV. Sem React, sem DOM — é o que os testes unitários alcançam.</p>
+    <div class="corpo">
+      <div class="arq">
+        <div class="cam"><span class="mono">src/lib/stats.js</span>
+          <span class="exp">recorteForte · espacoForte · montarJanela · curvaDose · montarSemana · calcularStats · escala · escalaFacil · MIN_FORTE · minutosFortes · ehForte</span></div>
+        <span class="num">426 l · 4↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/lib/util.js</span>
+          <span class="exp">sum · fmt · clamp · cap · desvio · pearson · mulberry32 · minSeg · deMinSeg · mmss · soDigitos · tempoDeDigitos · minutosDeDigitos · digitosDeMinutos · arrumarDigitos</span></div>
+        <span class="num">111 l · 15↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/lib/treino.js</span>
+          <span class="exp">ZONES · PESO_EQUIV · trimp · totalZ · cargaZ · equiv · equivZ · seed · faixa</span></div>
+        <span class="num">82 l · 16↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/lib/sessoes.js</span>
+          <span class="exp">normalizarSessao · normalizarSessoes · FC_MIN · FC_MAX · dataValida</span></div>
+        <span class="num">78 l · 3↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/lib/csv.js</span>
+          <span class="exp">parseCsv · chaveSessao · sessoesDeCsv</span></div>
+        <span class="num">76 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/lib/datas.js</span>
+          <span class="exp">DIAS_CURTO · DIAS_NOME · pad2 · iso · dayjs · daysAgo · diffDias · mondayOf · longDate · shortDate</span></div>
+        <span class="num">24 l · 20↓</span>
+      </div>
+    </div>
+  </div><div class="camada" onclick="this.classList.toggle('aberta')">
+    <header>
+      <div class="faixa" style="background:#FF375F"></div>
+      <h3>Aplicação</h3>
+      <span class="pin">raiz</span>
+      <span class="met"><span>4 arquivos</span><span>943 linhas</span><span class="seta">›</span></span>
+    </header>
+    <p>Estado, roteamento entre abas, armazenamento e a folha de estilos que todos importam.</p>
+    <div class="corpo">
+      <div class="arq">
+        <div class="cam"><span class="mono">src/estilos.js</span>
+          <span class="exp">C · font · s · FAIXA_COR · FAIXA_TXT · ICONS</span></div>
+        <span class="num">622 l · 26↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/App.jsx</span>
+          <span class="exp">AppComRecuperacao</span></div>
+        <span class="num">271 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/armazenamento.js</span>
+          <span class="exp">KEY · KEY_CFG · DEFAULT_CFG · store</span></div>
+        <span class="num">32 l · 2↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/main.jsx</span>
+          </div>
+        <span class="num">18 l</span>
+      </div>
+    </div>
+  </div><div class="camada" onclick="this.classList.toggle('aberta')">
+    <header>
+      <div class="faixa" style="background:#FF9F0A"></div>
+      <h3>Moldura</h3>
+      <span class="pin">ui</span>
+      <span class="met"><span>3 arquivos</span><span>637 linhas</span><span class="seta">›</span></span>
+    </header>
+    <p>O que envolve as telas: quadro do telefone, barra de abas, folhas modais, cards e o limite de erro.</p>
+    <div class="corpo">
+      <div class="arq">
+        <div class="cam"><span class="mono">src/ui/estrutura.jsx</span>
+          <span class="exp">EstilosBase · Shell · Sheet · Confirmacao · LargeTitle · SectionTitle · Card · Empty · TabBar</span></div>
+        <span class="num">376 l · 9↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/ui/primitivos.jsx</span>
+          <span class="exp">Tile · Metric · LegendItem · Insight · Line · FieldNum · Segmented</span></div>
+        <span class="num">143 l · 5↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/ui/Recuperacao.jsx</span>
+          <span class="exp">LimiteDeErro</span></div>
+        <span class="num">118 l · 1↓</span>
+      </div>
+    </div>
+  </div><div class="camada" onclick="this.classList.toggle('aberta')">
+    <header>
+      <div class="faixa" style="background:#5AC8FA"></div>
+      <h3>Gráficos</h3>
+      <span class="pin">graficos</span>
+      <span class="met"><span>17 arquivos</span><span>1.339 linhas</span><span class="seta">›</span></span>
+    </header>
+    <p>Um arquivo por visualização. Recebem dados prontos e devolvem SVG.</p>
+    <div class="corpo">
+      <div class="arq">
+        <div class="cam"><span class="mono">src/graficos/DoseChart.jsx</span>
+          <span class="exp">DoseChart</span></div>
+        <span class="num">173 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/graficos/Heatmap.jsx</span>
+          <span class="exp">Heatmap</span></div>
+        <span class="num">169 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/graficos/ZoneBars.jsx</span>
+          <span class="exp">ZoneBars</span></div>
+        <span class="num">118 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/graficos/HrChart.jsx</span>
+          <span class="exp">HrChart</span></div>
+        <span class="num">92 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/graficos/PmcChart.jsx</span>
+          <span class="exp">PmcChart</span></div>
+        <span class="num">87 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/graficos/ForteChart.jsx</span>
+          <span class="exp">ForteChart</span></div>
+        <span class="num">83 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/graficos/ForteStrip.jsx</span>
+          <span class="exp">ForteStrip</span></div>
+        <span class="num">78 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/graficos/LoadChart.jsx</span>
+          <span class="exp">LoadChart</span></div>
+        <span class="num">75 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/graficos/WeekStrip.jsx</span>
+          <span class="exp">WeekStrip</span></div>
+        <span class="num">75 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/graficos/IntensityChart.jsx</span>
+          <span class="exp">IntensityChart</span></div>
+        <span class="num">64 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/graficos/WeekdayChart.jsx</span>
+          <span class="exp">WeekdayChart</span></div>
+        <span class="num">61 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/graficos/RpeScatter.jsx</span>
+          <span class="exp">RpeScatter</span></div>
+        <span class="num">60 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/graficos/ZoneEvolution.jsx</span>
+          <span class="exp">ZoneEvolution</span></div>
+        <span class="num">54 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/graficos/CumulativeChart.jsx</span>
+          <span class="exp">CumulativeChart</span></div>
+        <span class="num">52 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/graficos/ProjChart.jsx</span>
+          <span class="exp">ProjChart</span></div>
+        <span class="num">48 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/graficos/ZoneColumn.jsx</span>
+          <span class="exp">ZoneColumn</span></div>
+        <span class="num">40 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/graficos/topRounded.js</span>
+          <span class="exp">topRounded</span></div>
+        <span class="num">10 l · 5↓</span>
+      </div>
+    </div>
+  </div><div class="camada" onclick="this.classList.toggle('aberta')">
+    <header>
+      <div class="faixa" style="background:#30D158"></div>
+      <h3>Telas</h3>
+      <span class="pin">telas</span>
+      <span class="met"><span>6 arquivos</span><span>1.897 linhas</span><span class="seta">›</span></span>
+    </header>
+    <p>As quatro abas e as duas folhas modais. Só desenham — nenhuma faz conta.</p>
+    <div class="corpo">
+      <div class="arq">
+        <div class="cam"><span class="mono">src/telas/Resumo.jsx</span>
+          <span class="exp">Resumo</span></div>
+        <span class="num">491 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/telas/Analise.jsx</span>
+          <span class="exp">Analise</span></div>
+        <span class="num">392 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/telas/Tendencias.jsx</span>
+          <span class="exp">Tendencias</span></div>
+        <span class="num">392 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/telas/Historico.jsx</span>
+          <span class="exp">Historico</span></div>
+        <span class="num">321 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/telas/RegistrarSheet.jsx</span>
+          <span class="exp">RegistrarSheet</span></div>
+        <span class="num">197 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/telas/Ajustes.jsx</span>
+          <span class="exp">Ajustes</span></div>
+        <span class="num">104 l · 1↓</span>
+      </div>
+    </div>
+  </div>
+<p class="dica">O número após a barra é quantos módulos importam aquele arquivo.</p>
+
+<h2>Quem depende de quem</h2>
+<div class="cartao grafo">
+  <svg viewBox="0 0 680 300" role="img" aria-label="Grafo de dependência: App importa telas, telas importam gráficos, moldura e núcleo puro; tudo converge para o núcleo puro e para a folha de estilos">
+    <defs>
+      <marker id="pt" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker>
+    </defs>
+    <g color="var(--ter)"><path d="M340 54 L340 84"
+          stroke="currentColor" stroke-width="1.35" fill="none"
+          marker-end="url(#pt)" opacity="0.39"/><path d="M282 142 L182 186"
+          stroke="currentColor" stroke-width="2.07" fill="none"
+          marker-end="url(#pt)" opacity="0.59"/><path d="M398 142 L498 186"
+          stroke="currentColor" stroke-width="1.80" fill="none"
+          marker-end="url(#pt)" opacity="0.52"/><path d="M328 131 L236 248"
+          stroke="currentColor" stroke-width="2.44" fill="none"
+          marker-end="url(#pt)" opacity="0.69"/><path d="M352 131 L444 248"
+          stroke="currentColor" stroke-width="1.35" fill="none"
+          marker-end="url(#pt)" opacity="0.39"/><path d="M145 212 L164 248"
+          stroke="currentColor" stroke-width="2.71" fill="none"
+          marker-end="url(#pt)" opacity="0.77"/><path d="M193 213 L428 265"
+          stroke="currentColor" stroke-width="2.07" fill="none"
+          marker-end="url(#pt)" opacity="0.59"/><path d="M487 213 L252 265"
+          stroke="currentColor" stroke-width="0.98" fill="none"
+          marker-end="url(#pt)" opacity="0.29"/><path d="M535 212 L516 248"
+          stroke="currentColor" stroke-width="1.07" fill="none"
+          marker-end="url(#pt)" opacity="0.32"/><path d="M331 51 L227 244"
+          stroke="currentColor" stroke-width="1.16" fill="none"
+          marker-end="url(#pt)" opacity="0.34"/><path d="M389 78 L506 178"
+          stroke="currentColor" stroke-width="0.98" fill="none"
+          marker-end="url(#pt)" opacity="0.29"/></g><g><rect x="278" y="17" width="124" height="34" rx="9"
+           fill="var(--papel)" stroke="#FF375F" stroke-width="1.7"/>
+         <text x="340" y="33" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--tinta)">App.jsx</text>
+         <text x="340" y="46" text-anchor="middle" font-size="9.5" fill="var(--ter)">estado e abas</text></g><g><rect x="278" y="99" width="124" height="34" rx="9"
+           fill="var(--papel)" stroke="#30D158" stroke-width="1.7"/>
+         <text x="340" y="115" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--tinta)">Telas</text>
+         <text x="340" y="128" text-anchor="middle" font-size="9.5" fill="var(--ter)">6 arq · 1.699 l</text></g><g><rect x="70" y="181" width="124" height="34" rx="9"
+           fill="var(--papel)" stroke="#5AC8FA" stroke-width="1.7"/>
+         <text x="132" y="197" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--tinta)">Gráficos</text>
+         <text x="132" y="210" text-anchor="middle" font-size="9.5" fill="var(--ter)">15 arq · 1.178 l</text></g><g><rect x="486" y="181" width="124" height="34" rx="9"
+           fill="var(--papel)" stroke="#FF9F0A" stroke-width="1.7"/>
+         <text x="548" y="197" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--tinta)">Moldura</text>
+         <text x="548" y="210" text-anchor="middle" font-size="9.5" fill="var(--ter)">3 arq · 637 l</text></g><g><rect x="138" y="255" width="124" height="34" rx="9"
+           fill="var(--papel)" stroke="#5E5CE6" stroke-width="1.7"/>
+         <text x="200" y="271" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--tinta)">Núcleo puro</text>
+         <text x="200" y="284" text-anchor="middle" font-size="9.5" fill="var(--ter)">6 arq · 708 l</text></g><g><rect x="418" y="255" width="124" height="34" rx="9"
+           fill="var(--papel)" stroke="#BF5AF2" stroke-width="1.7"/>
+         <text x="480" y="271" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--tinta)">estilos.js</text>
+         <text x="480" y="284" text-anchor="middle" font-size="9.5" fill="var(--ter)">622 l · 24 ↓</text></g>
+  </svg>
+  <p class="dica">A seta aponta de quem <b>importa</b> para o que é <b>importado</b>, e a espessura é a quantidade de importações. Nenhuma seta sobe: o núcleo puro não conhece telas, gráficos nem moldura — é isso que permite testá-lo sem montar componente. <code>estilos.js</code> aparece separado por ser a folha mais compartilhada do projeto, com 24 módulos importando.</p>
+</div>
+
+<h2>Fluxo de um dado, do disco à tela</h2>
+<div class="cartao fluxo">
+  <div class="passo">
+    <div class="bolha">1</div>
+    <div><b>localStorage</b><span>duas chaves: sessões e configuração</span>
+      <span class="mod mono">src/armazenamento.js</span></div>
+  </div><div class="passo">
+    <div class="bolha">2</div>
+    <div><b>normalizarSessoes</b><span>nada do armazenamento chega ao motor sem passar por aqui: zona ausente vira 0, total é derivado das zonas, FC fora de 30–250 vira nulo, registro irrecuperável é descartado com aviso</span>
+      <span class="mod mono">src/lib/sessoes.js</span></div>
+  </div><div class="passo">
+    <div class="bolha">3</div>
+    <div><b>calcularStats</b><span>puro: entra (sessões, config), sai o objeto de métricas — aptidão, fadiga, forma, razão aguda/crônica, zonas, recordes</span>
+      <span class="mod mono">src/lib/stats.js</span></div>
+  </div><div class="passo">
+    <div class="bolha">4</div>
+    <div><b>montarSemana · montarJanela · curvaDose</b><span>recortes independentes do motor: semana de calendário, janela móvel de 7 dias, e a curva da dose em 30 dias</span>
+      <span class="mod mono">src/lib/stats.js</span></div>
+  </div><div class="passo">
+    <div class="bolha">5</div>
+    <div><b>telas e gráficos</b><span>recebem dados prontos e só desenham</span>
+      <span class="mod mono">src/telas/ · src/graficos/</span></div>
+  </div><div class="passo">
+    <div class="bolha">6</div>
+    <div><b>LimiteDeErro</b><span>rede final: qualquer falha de renderização vira tela de recuperação, com download dos dados brutos antes de limpar</span>
+      <span class="mod mono">src/ui/Recuperacao.jsx</span></div>
+  </div>
+</div>
+
+<h2>Persistência</h2>
+<div class="cartao">
+  <div class="lin"><dt>onde</dt><dd>localStorage do navegador</dd></div><div class="lin"><dt>chaves</dt><dd>sessoes: <code>eliptico:v5:sessoes</code> · config: <code>eliptico:v5:config</code></dd></div><div class="lin"><dt>formato</dt><dd>JSON</dd></div><div class="lin"><dt>tolerancia</dt><dd>toda escrita é try/catch; falha vira aviso e a sessão continua em memória</dd></div><div class="lin"><dt>backup</dt><dd>exportação e importação em CSV, com deduplicação por data e zonas</dd></div><div class="lin"><dt>sincronizacao</dt><dd>nenhuma — os dados vivem só neste navegador</dd></div>
+</div>
+
+<h2>Métricas de treino</h2>
+<div class="cartao" style="overflow-x:auto">
+<table>
+  <tr><th>Métrica</th><th>Como é calculada</th><th>Onde aparece</th><th>Ressalva</th></tr>
+  <tr>
+    <td>TRIMP</td><td class="rv">soma de minutos por zona, ponderada de 1 a 5</td>
+    <td class="rv">aptidão, fadiga, razão aguda/crônica, monotonia</td><td class="rv">convenção do próprio app, não a formulação de Banister</td></tr><tr>
+    <td>Minutos equivalentes</td><td class="rv">Z1 × 0, Z2 e Z3 × 1, Z4 e Z5 × 2</td>
+    <td class="rv">base da meta semanal de 150</td><td class="rv">equivalência moderada/vigorosa da recomendação de saúde</td></tr><tr>
+    <td>Aptidão (CTL)</td><td class="rv">média exponencial de 42 dias da carga diária</td>
+    <td class="rv">linha azul do gráfico de forma</td><td class="rv">parte de zero no primeiro treino; ver ESTATISTICAS.md 2.2</td></tr><tr>
+    <td>Fadiga (ATL)</td><td class="rv">média exponencial de 7 dias</td>
+    <td class="rv">linha laranja</td><td class="rv">—</td></tr><tr>
+    <td>Forma (TSB)</td><td class="rv">aptidão menos fadiga</td>
+    <td class="rv">estado atual</td><td class="rv">hoje não fecha com os dois números exibidos; ver ESTATISTICAS.md 1.1</td></tr><tr>
+    <td>Razão aguda/crônica</td><td class="rv">carga de 7 dias ÷ média semanal de 28 dias</td>
+    <td class="rv">gestão de carga</td><td class="rv">janela acoplada; ver ESTATISTICAS.md 2.3</td></tr><tr>
+    <td>Dose de 7 dias</td><td class="rv">minutos equivalentes na janela móvel</td>
+    <td class="rv">card da dose e curva de 30 dias</td><td class="rv">não zera na segunda-feira</td></tr>
+</table>
+</div>
+
+<h2>Qualidade</h2>
+<div class="cartao">
+  <div class="lin"><dt>CI, em ordem</dt><dd class="mono">npm ci → npm run lint → npm run format:check → npm test → npm run build → playwright install chromium → npm run e2e</dd></div>
+  <div class="lin"><dt>Política de teste</dt><dd>qualquer erro de runtime ou no console reprova o teste de navegador, mesmo que as asserções passem</dd></div>
+  <div class="lin"><dt>Verificação</dt><dd>cada correção é conferida por mutação: desfaz-se o conserto e confirma-se que o teste correspondente reprova</dd></div>
+  <div class="lin"><dt>Documentos</dt><dd>MELHORIAS.md — dívidas e melhorias, com o que já foi resolvido<br>ESTATISTICAS.md — auditoria dos números, com medições<br>ORGANIZACAO.md — proposta de reorganização das abas</dd></div>
+</div>
+
+<h2>Limites conhecidos e aceitos</h2>
+<div class="cartao"><ul class="lim"><li>Sem sincronização entre dispositivos: os dados vivem no localStorage de um navegador</li><li>maximum-scale=1 no viewport, mantido por decisão para evitar zoom acidental nos campos numéricos</li><li>Sem modo escuro, por decisão</li><li>React responde por 63% do pacote comprimido</li><li>calcularStats é O(n) por render e leva ~100 ms com 5.000 treinos</li></ul></div>
+
+</div>

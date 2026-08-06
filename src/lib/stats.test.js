@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { calcularStats, escala, escalaFacil, montarSemana, montarJanela, curvaDose } from "./stats.js";
+import {
+  calcularStats, escala, escalaFacil, montarSemana, montarJanela, curvaDose,
+  recorteForte, espacoForte, MIN_FORTE,
+} from "./stats.js";
 import { iso, mondayOf } from "./datas.js";
 
 const CFG = {
@@ -512,5 +515,185 @@ describe("montarJanela: zonas", () => {
     const j = montarJanela([]);
     expect(Object.keys(j.zonas).sort()).toEqual(["z1", "z2", "z3", "z4", "z5"]);
     expect(j.grand).toBe(0);
+  });
+});
+
+/* ================= zonas 4 e 5 =================
+
+   As três funções abaixo alimentam a seção de trabalho forte da aba Tendências.
+   O que elas têm de próprio, e que nenhuma outra conta do app faz, é separar Z4 e
+   Z5 de Z3: `z3mais` já existia e mistura ritmo forte com limiar, que custam
+   recuperação bem diferente. */
+describe("recorteForte", () => {
+  const diasAtras = (n) => {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() - n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const ses = (n, zones, total) => ({
+    id: `f${n}-${JSON.stringify(zones)}`,
+    date: diasAtras(n),
+    zones: { z1: 0, z2: 0, z3: 0, z4: 0, z5: 0, ...zones },
+    total: total ?? Object.values(zones).reduce((a, b) => a + b, 0),
+    avgHr: null,
+    maxHr: null,
+    rpe: null,
+    notes: "",
+  });
+
+  it("soma Z4 e Z5 e ignora as outras zonas", () => {
+    const r = recorteForte([ses(1, { z1: 10, z2: 30, z3: 20, z4: 8, z5: 3 })], 7);
+    expect(r.z4).toBe(8);
+    expect(r.z5).toBe(3);
+    expect(r.minutos).toBe(11);
+  });
+
+  it("Z3 fica de fora, ao contrário de z3mais", () => {
+    const r = recorteForte([ses(1, { z3: 40 })], 7);
+    expect(r.minutos, "40 min de Z3 não são trabalho forte").toBe(0);
+  });
+
+  it("respeita a fronteira da janela", () => {
+    const r = recorteForte([ses(6, { z4: 10 }), ses(7, { z4: 99 })], 7);
+    expect(r.z4).toBe(10);
+  });
+
+  it("recuo anda para trás em janelas inteiras, sem sobrepor", () => {
+    const treinos = [ses(3, { z4: 5 }), ses(10, { z4: 7 })];
+    expect(recorteForte(treinos, 7, 0).minutos).toBe(5);
+    expect(recorteForte(treinos, 7, 1).minutos).toBe(7);
+  });
+
+  it("a carga forte usa os pesos 4 e 5 das zonas", () => {
+    const r = recorteForte([ses(1, { z4: 10, z5: 2 })], 7);
+    expect(r.carga, "10×4 + 2×5").toBe(50);
+  });
+
+  it("pctCarga é maior que pctMin — é o ponto do card", () => {
+    /* 10 min de Z2 e 10 de Z4: metade do relógio, mas 40 de 60 TRIMP */
+    const r = recorteForte([ses(1, { z2: 10, z4: 10 })], 7);
+    expect(r.pctMin).toBeCloseTo(50, 5);
+    expect(r.pctCarga).toBeCloseTo((40 / 60) * 100, 5);
+    expect(r.pctCarga).toBeGreaterThan(r.pctMin);
+  });
+
+  it("o denominador sai das zonas, não do total gravado", () => {
+    const r = recorteForte([ses(1, { z4: 10 }, 9999)], 7);
+    expect(r.minutosTotal).toBe(10);
+    expect(r.pctMin, "com total 9999 daria 0,1%").toBeCloseTo(100, 5);
+  });
+
+  it("sem treino nenhum devolve zeros, e não NaN", () => {
+    const r = recorteForte([], 7);
+    expect(r.pctMin).toBe(0);
+    expect(r.pctCarga).toBe(0);
+    expect(r.minutos).toBe(0);
+  });
+
+  it("conta sessões fortes pelo corte de MIN_FORTE", () => {
+    const r = recorteForte([ses(1, { z4: MIN_FORTE }), ses(2, { z4: MIN_FORTE - 1 })], 7);
+    expect(r.sessoes, "só a que alcança o corte").toBe(1);
+  });
+});
+
+describe("espacoForte", () => {
+  const diasAtras = (n) => {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() - n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const forte = (n, min = 10) => ({
+    id: `e${n}-${min}`,
+    date: diasAtras(n),
+    zones: { z1: 0, z2: 20, z3: 0, z4: min, z5: 0 },
+    total: 20 + min,
+    avgHr: null,
+    maxHr: null,
+    rpe: null,
+    notes: "",
+  });
+
+  it("mede o intervalo entre dias fortes", () => {
+    const e = espacoForte([forte(10), forte(7), forte(1)], 35);
+    expect(e.total).toBe(3);
+    expect(e.medio, "intervalos de 3 e 6 dias").toBeCloseTo(4.5, 5);
+  });
+
+  it("conta os dias seguidos", () => {
+    const e = espacoForte([forte(5), forte(4), forte(1)], 35);
+    expect(e.seguidos, "5→4 é seguido, 4→1 não").toBe(1);
+  });
+
+  it("duas sessões fortes no mesmo dia são um estímulo só", () => {
+    const e = espacoForte([forte(3, 10), forte(3, 12)], 35);
+    expect(e.total).toBe(1);
+  });
+
+  it("somam-se os minutos do dia antes de aplicar o corte", () => {
+    const meio = MIN_FORTE / 2 + 0.5;
+    const e = espacoForte([forte(3, meio), forte(3, meio)], 35);
+    expect(e.total, "duas metades no mesmo dia passam do corte juntas").toBe(1);
+  });
+
+  it("dias fáceis não entram na conta mas aparecem na série", () => {
+    const facil = { ...forte(2, 0), id: "facil" };
+    const e = espacoForte([facil, forte(6)], 35);
+    expect(e.total).toBe(1);
+    const dia = e.serie.find((d) => d.date === facil.date);
+    expect(dia.treino, "o dia fácil é dia de treino").toBe(true);
+    expect(dia.forte).toBe(0);
+  });
+
+  it("a série tem um item por dia da janela e termina hoje", () => {
+    const e = espacoForte([], 35);
+    expect(e.serie).toHaveLength(35);
+    expect(e.serie.at(-1).date).toBe(diasAtras(0));
+    expect(e.serie[0].date).toBe(diasAtras(34));
+  });
+
+  it("sem sessão forte nenhuma, nada de NaN nem de data inventada", () => {
+    const e = espacoForte([], 35);
+    expect(e.total).toBe(0);
+    expect(e.medio).toBeNull();
+    expect(e.desdeUltimo).toBeNull();
+  });
+
+  it("desdeUltimo conta a partir do último dia forte", () => {
+    const e = espacoForte([forte(4)], 35);
+    expect(e.desdeUltimo).toBe(4);
+  });
+
+  it("o que está fora da janela não conta", () => {
+    const e = espacoForte([forte(40)], 35);
+    expect(e.total).toBe(0);
+  });
+});
+
+/* A série semanal de Z4+Z5 alimenta o gráfico do card "Trabalho forte". */
+describe("semanas: forte e forte4", () => {
+  it("forte soma só Z4 e Z5 da semana", () => {
+    const s = [
+      { ...sessao(iso(segundaHa(0))), zones: { z1: 0, z2: 30, z3: 20, z4: 8, z5: 2 } },
+    ];
+    const st = calcularStats(s, CFG);
+    expect(st.weeks.at(-1).forte).toBe(10);
+    expect(st.weeks.at(-1).z3mais, "z3mais continua incluindo Z3").toBe(30);
+  });
+
+  it("forte4 é a média das 4 últimas semanas, inclusive as vazias", () => {
+    const s = [];
+    for (let i = 3; i >= 0; i--) {
+      if (i === 0) continue;
+      s.push({
+        ...sessao(iso(segundaHa(i))),
+        id: `w${i}`,
+        zones: { z1: 0, z2: 30, z3: 0, z4: 4, z5: 0 },
+      });
+    }
+    const st = calcularStats(s, CFG);
+    expect(st.weeks.at(-1).forte, "a semana corrente está vazia").toBe(0);
+    expect(st.weeks.at(-1).forte4, "0+4+4+4 em 4 semanas").toBeCloseTo(3, 5);
   });
 });
