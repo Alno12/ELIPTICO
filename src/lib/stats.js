@@ -1,6 +1,91 @@
 import { sum, desvio, pearson } from "./util.js";
 import { iso, dayjs, daysAgo, diffDias, mondayOf, DIAS_CURTO } from "./datas.js";
-import { ZONES, trimp, equiv } from "./treino.js";
+import { ZONES, trimp, equiv, totalZ, cargaZ } from "./treino.js";
+
+/* ================= zonas 4 e 5 =================
+
+   Z4 (limiar) e Z5 (máximo) são a fatia cara do treino: rendem muito por minuto
+   e cobram recuperação na mesma proporção. As três funções abaixo existem porque
+   nenhuma das outras responde às perguntas que essa fatia levanta — quanto dela
+   você fez, quanto ela pesa na carga, e se sobrou tempo entre um estímulo e o
+   seguinte. */
+
+/* Sessão forte: pelo menos MIN_FORTE minutos somados em Z4 e Z5.
+
+   O corte existe porque quase todo treino contínuo encosta um minuto ou dois em
+   Z4 no fim de uma subida. Contar isso como "sessão forte" apagaria a diferença
+   entre um intervalado e uma rodagem que terminou apertada. */
+export const MIN_FORTE = 4;
+export const minutosFortes = (s) => (s.zones.z4 || 0) + (s.zones.z5 || 0);
+export const ehForte = (s) => minutosFortes(s) >= MIN_FORTE;
+
+/* Z4 e Z5 numa janela móvel de `dias` dias; `recuo` anda para trás em janelas
+   inteiras, como em `montarJanela`.
+
+   `pctMin` e `pctCarga` medem a mesma fatia com duas réguas: o relógio e o TRIMP.
+   Como os pesos são 4 e 5 contra 1 e 2 do treino fácil, a segunda é sempre maior
+   que a primeira, e é o tamanho dessa diferença que interessa. */
+export function recorteForte(sessions, dias = 30, recuo = 0) {
+  const inicio = iso(daysAgo(recuo * dias + dias - 1));
+  const fim = iso(daysAgo(recuo * dias));
+  const dentro = sessions.filter((x) => x.date >= inicio && x.date <= fim);
+  const z4 = sum(dentro, (x) => x.zones.z4 || 0);
+  const z5 = sum(dentro, (x) => x.zones.z5 || 0);
+  /* denominador vindo da soma das zonas, e não de `total`, para bater com o
+     numerador mesmo se um registro antigo tiver os dois em desacordo */
+  const minutosTotal = sum(dentro, (x) => totalZ(x.zones));
+  const cargaTotal = sum(dentro, trimp);
+  const carga = cargaZ({ z4, z5 });
+  return {
+    inicio,
+    fim,
+    z4,
+    z5,
+    minutos: z4 + z5,
+    minutosTotal,
+    carga,
+    cargaTotal,
+    pctMin: minutosTotal ? ((z4 + z5) / minutosTotal) * 100 : 0,
+    pctCarga: cargaTotal ? (carga / cargaTotal) * 100 : 0,
+    sessoes: dentro.filter(ehForte).length,
+  };
+}
+
+/* Espaçamento entre os dias de treino forte dos últimos `dias` dias.
+
+   A referência prática é não repetir alta intensidade em dias consecutivos: o
+   estímulo leva mais ou menos 48 h para virar adaptação, e emendado ele só
+   acumula fadiga. `seguidos` conta quantas vezes o intervalo foi de um dia só.
+
+   Trabalha com dias, e não com sessões: dois intervalados no mesmo dia são um
+   estímulo do ponto de vista da recuperação, não dois. */
+export function espacoForte(sessions, dias = 35) {
+  const desde = iso(daysAgo(dias - 1));
+  /* um dia por posição, inclusive os vazios: o desenho é sobre os buracos entre
+     os estímulos, e um buraco só aparece se o dia sem treino ocupar espaço */
+  const serie = Array.from({ length: dias }, (_, k) => {
+    const date = iso(daysAgo(dias - 1 - k));
+    const doDia = sessions.filter((x) => x.date === date);
+    return {
+      date,
+      treino: doDia.length > 0,
+      forte: sum(doDia, minutosFortes),
+    };
+  });
+  const datas = serie.filter((d) => d.forte >= MIN_FORTE).map((d) => d.date);
+  const gaps = [];
+  for (let i = 1; i < datas.length; i++) gaps.push(diffDias(datas[i - 1], datas[i]));
+  return {
+    dias,
+    desde,
+    datas,
+    serie,
+    total: datas.length,
+    medio: gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : null,
+    seguidos: gaps.filter((g) => g === 1).length,
+    desdeUltimo: datas.length ? diffDias(datas.at(-1), iso(new Date())) : null,
+  };
+}
 
 /* Janela móvel de `tamanho` dias terminando hoje. `recuo` 0 é a janela que acaba
    hoje, 1 é a janela imediatamente anterior a ela, e assim por diante.
@@ -164,15 +249,19 @@ export function calcularStats(sessions, cfg) {
         carga: sum(inWeek, trimp),
         sessoes: inWeek.length,
         z3mais: sum(inWeek, (x) => (x.zones.z3 || 0) + (x.zones.z4 || 0) + (x.zones.z5 || 0)),
+        /* só Z4 e Z5: `z3mais` mistura o tempo de limiar com o de ritmo forte,
+           e são estímulos com custo de recuperação bem diferente */
+        forte: zw.z4 + zw.z5,
         equiv: sum(inWeek, equiv),
         zones: zw,
       });
     }
-    /* média móvel de 4 semanas: calculada sobre a série completa, então a
-       ponta esquerda do gráfico deixa de subir a partir do zero */
+    /* médias móveis de 4 semanas: calculadas sobre a série completa, então a
+       ponta esquerda dos gráficos deixa de subir a partir do zero */
     todasSemanas.forEach((w, i) => {
       const win = todasSemanas.slice(Math.max(0, i - 3), i + 1);
       w.media4 = win.reduce((a, b) => a + b.carga, 0) / win.length;
+      w.forte4 = win.reduce((a, b) => a + b.forte, 0) / win.length;
     });
 
     const weeks = todasSemanas.slice(-17);
@@ -306,8 +395,8 @@ export function calcularStats(sessions, cfg) {
       zoneTotals, grand, polar, weeks, todasSemanas, deltaHr, hrSes, pctFCR,
       densidade: dens(sessions), densidade28: dens(d28), densidade28ant: dens(d28ant),
       rpeMedia, rpeCorr, rpePontos,
-      intervalados: sessions.filter((x) => x.zones.z4 + x.zones.z5 >= 4).length,
-      continuos: sessions.filter((x) => x.zones.z4 + x.zones.z5 < 4).length,
+      intervalados: sessions.filter(ehForte).length,
+      continuos: sessions.filter((x) => !ehForte(x)).length,
       intervaloMedio, desdeUltimo, streak, maiorStreak, melhorDia, perfilDia,
       acum28: acum(0), acum28ant: acum(28),
       variacaoSemanal, semanasNaMeta, totalCompletas: fechadas.length,

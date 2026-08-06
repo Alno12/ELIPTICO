@@ -1,5 +1,5 @@
 {
-  "gerado_em": "2026-08-04",
+  "gerado_em": "2026-08-06",
   "app": {
     "nome": "Zonas · Elíptico",
     "descricao": "PWA de registro de treinos aeróbicos por zona de frequência cardíaca, com análise de carga e tendências.",
@@ -29,10 +29,10 @@
     "sincronizacao": "nenhuma — os dados vivem só neste navegador"
   },
   "metricas_do_codigo": {
-    "arquivos_producao": 35,
-    "linhas_producao": 5262,
-    "arquivos_teste": 19,
-    "linhas_teste": 2905,
+    "arquivos_producao": 37,
+    "linhas_producao": 5710,
+    "arquivos_teste": 20,
+    "linhas_teste": 3274,
     "testes_unitarios": 191,
     "testes_navegador": 94,
     "pacote_kb": 240.81,
@@ -46,8 +46,8 @@
       "papel": "Cálculo, datas, normalização e CSV. Sem React, sem DOM — é o que os testes unitários alcançam.",
       "cor": "#5E5CE6",
       "arquivos": 6,
-      "linhas": 708,
-      "densidade_comentario": 6.8
+      "linhas": 797,
+      "densidade_comentario": 6.9
     },
     {
       "id": "raiz",
@@ -73,17 +73,17 @@
       "papel": "As quatro abas e as duas folhas modais. Só desenham — nenhuma faz conta.",
       "cor": "#30D158",
       "arquivos": 6,
-      "linhas": 1699,
-      "densidade_comentario": 1.4
+      "linhas": 1897,
+      "densidade_comentario": 1.5
     },
     {
       "id": "graficos",
       "nome": "Gráficos",
       "papel": "Um arquivo por visualização. Recebem dados prontos e devolvem SVG.",
       "cor": "#5AC8FA",
-      "arquivos": 15,
-      "linhas": 1178,
-      "densidade_comentario": 0.6
+      "arquivos": 17,
+      "linhas": 1339,
+      "densidade_comentario": 0.8
     }
   ],
   "arquivos": [
@@ -138,7 +138,7 @@
         "ICONS"
       ],
       "importa": [],
-      "importado_por": 24
+      "importado_por": 26
     },
     {
       "caminho": "src/graficos/CumulativeChart.jsx",
@@ -161,6 +161,33 @@
       ],
       "importa": [
         "src/lib/util",
+        "src/lib/datas",
+        "src/estilos"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/graficos/ForteChart.jsx",
+      "camada": "graficos",
+      "linhas": 83,
+      "exporta": [
+        "ForteChart"
+      ],
+      "importa": [
+        "src/lib/datas",
+        "src/estilos",
+        "src/graficos/topRounded"
+      ],
+      "importado_por": 1
+    },
+    {
+      "caminho": "src/graficos/ForteStrip.jsx",
+      "camada": "graficos",
+      "linhas": 78,
+      "exporta": [
+        "ForteStrip"
+      ],
+      "importa": [
         "src/lib/datas",
         "src/estilos"
       ],
@@ -341,7 +368,7 @@
         "topRounded"
       ],
       "importa": [],
-      "importado_por": 4
+      "importado_por": 5
     },
     {
       "caminho": "src/lib/csv.js",
@@ -378,7 +405,7 @@
       "importa": [
         "src/lib/util"
       ],
-      "importado_por": 18
+      "importado_por": 20
     },
     {
       "caminho": "src/lib/sessoes.js",
@@ -400,21 +427,26 @@
     {
       "caminho": "src/lib/stats.js",
       "camada": "lib",
-      "linhas": 337,
+      "linhas": 426,
       "exporta": [
+        "recorteForte",
+        "espacoForte",
         "montarJanela",
         "curvaDose",
         "montarSemana",
         "calcularStats",
         "escala",
-        "escalaFacil"
+        "escalaFacil",
+        "MIN_FORTE",
+        "minutosFortes",
+        "ehForte"
       ],
       "importa": [
         "src/lib/util",
         "src/lib/datas",
         "src/lib/treino"
       ],
-      "importado_por": 3
+      "importado_por": 4
     },
     {
       "caminho": "src/lib/treino.js",
@@ -425,6 +457,7 @@
         "PESO_EQUIV",
         "trimp",
         "totalZ",
+        "cargaZ",
         "equiv",
         "equivZ",
         "seed",
@@ -564,7 +597,7 @@
     {
       "caminho": "src/telas/Tendencias.jsx",
       "camada": "telas",
-      "linhas": 194,
+      "linhas": 392,
       "exporta": [
         "Tendencias"
       ],
@@ -572,6 +605,7 @@
         "src/lib/util",
         "src/lib/datas",
         "src/lib/treino",
+        "src/lib/stats",
         "src/estilos",
         "src/ui/estrutura",
         "src/ui/primitivos",
@@ -581,7 +615,9 @@
         "src/graficos/ZoneBars",
         "src/graficos/LoadChart",
         "src/graficos/IntensityChart",
-        "src/graficos/HrChart"
+        "src/graficos/HrChart",
+        "src/graficos/ForteChart",
+        "src/graficos/ForteStrip"
       ],
       "importado_por": 1
     },

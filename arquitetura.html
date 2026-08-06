@@ -80,11 +80,11 @@
 <div class="env">
 <h1>Arquitetura — Zonas · Elíptico</h1>
 <p class="sub">PWA de registro de treinos aeróbicos por zona de frequência cardíaca, com análise de carga e tendências.</p>
-<p class="stamp">Levantado do código em 2026-08-04 · 35 arquivos de produção · 5.262 linhas</p>
+<p class="stamp">Levantado do código em 2026-08-06 · 37 arquivos de produção · 5.710 linhas</p>
 
 <h2>Em números</h2>
 <div class="cartao placar">
-  <div><div class="n">5.262</div><div class="r">linhas de produção</div></div><div><div class="n">2.905</div><div class="r">linhas de teste</div></div><div><div class="n">191</div><div class="r">testes unitários</div></div><div><div class="n">94</div><div class="r">testes de navegador</div></div><div><div class="n">76.79 kB</div><div class="r">pacote comprimido</div></div><div><div class="n">5</div><div class="r">camadas</div></div>
+  <div><div class="n">5.710</div><div class="r">linhas de produção</div></div><div><div class="n">3.274</div><div class="r">linhas de teste</div></div><div><div class="n">191</div><div class="r">testes unitários</div></div><div><div class="n">94</div><div class="r">testes de navegador</div></div><div><div class="n">76.79 kB</div><div class="r">pacote comprimido</div></div><div><div class="n">5</div><div class="r">camadas</div></div>
 </div>
 
 <h2>Pilha</h2>
@@ -98,21 +98,21 @@
       <div class="faixa" style="background:#5E5CE6"></div>
       <h3>Núcleo puro</h3>
       <span class="pin">lib</span>
-      <span class="met"><span>6 arquivos</span><span>708 linhas</span><span class="seta">›</span></span>
+      <span class="met"><span>6 arquivos</span><span>797 linhas</span><span class="seta">›</span></span>
     </header>
     <p>Cálculo, datas, normalização e CSV. Sem React, sem DOM — é o que os testes unitários alcançam.</p>
     <div class="corpo">
       <div class="arq">
         <div class="cam"><span class="mono">src/lib/stats.js</span>
-          <span class="exp">montarJanela · curvaDose · montarSemana · calcularStats · escala · escalaFacil</span></div>
-        <span class="num">337 l · 3↓</span>
+          <span class="exp">recorteForte · espacoForte · montarJanela · curvaDose · montarSemana · calcularStats · escala · escalaFacil · MIN_FORTE · minutosFortes · ehForte</span></div>
+        <span class="num">426 l · 4↓</span>
       </div><div class="arq">
         <div class="cam"><span class="mono">src/lib/util.js</span>
           <span class="exp">sum · fmt · clamp · cap · desvio · pearson · mulberry32 · minSeg · deMinSeg · mmss · soDigitos · tempoDeDigitos · minutosDeDigitos · digitosDeMinutos · arrumarDigitos</span></div>
         <span class="num">111 l · 15↓</span>
       </div><div class="arq">
         <div class="cam"><span class="mono">src/lib/treino.js</span>
-          <span class="exp">ZONES · PESO_EQUIV · trimp · totalZ · equiv · equivZ · seed · faixa</span></div>
+          <span class="exp">ZONES · PESO_EQUIV · trimp · totalZ · cargaZ · equiv · equivZ · seed · faixa</span></div>
         <span class="num">82 l · 16↓</span>
       </div><div class="arq">
         <div class="cam"><span class="mono">src/lib/sessoes.js</span>
@@ -125,7 +125,7 @@
       </div><div class="arq">
         <div class="cam"><span class="mono">src/lib/datas.js</span>
           <span class="exp">DIAS_CURTO · DIAS_NOME · pad2 · iso · dayjs · daysAgo · diffDias · mondayOf · longDate · shortDate</span></div>
-        <span class="num">24 l · 18↓</span>
+        <span class="num">24 l · 20↓</span>
       </div>
     </div>
   </div><div class="camada" onclick="this.classList.toggle('aberta')">
@@ -140,7 +140,7 @@
       <div class="arq">
         <div class="cam"><span class="mono">src/estilos.js</span>
           <span class="exp">C · font · s · FAIXA_COR · FAIXA_TXT · ICONS</span></div>
-        <span class="num">622 l · 24↓</span>
+        <span class="num">622 l · 26↓</span>
       </div><div class="arq">
         <div class="cam"><span class="mono">src/App.jsx</span>
           <span class="exp">AppComRecuperacao</span></div>
@@ -183,7 +183,7 @@
       <div class="faixa" style="background:#5AC8FA"></div>
       <h3>Gráficos</h3>
       <span class="pin">graficos</span>
-      <span class="met"><span>15 arquivos</span><span>1.178 linhas</span><span class="seta">›</span></span>
+      <span class="met"><span>17 arquivos</span><span>1.339 linhas</span><span class="seta">›</span></span>
     </header>
     <p>Um arquivo por visualização. Recebem dados prontos e devolvem SVG.</p>
     <div class="corpo">
@@ -207,6 +207,14 @@
         <div class="cam"><span class="mono">src/graficos/PmcChart.jsx</span>
           <span class="exp">PmcChart</span></div>
         <span class="num">87 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/graficos/ForteChart.jsx</span>
+          <span class="exp">ForteChart</span></div>
+        <span class="num">83 l · 1↓</span>
+      </div><div class="arq">
+        <div class="cam"><span class="mono">src/graficos/ForteStrip.jsx</span>
+          <span class="exp">ForteStrip</span></div>
+        <span class="num">78 l · 1↓</span>
       </div><div class="arq">
         <div class="cam"><span class="mono">src/graficos/LoadChart.jsx</span>
           <span class="exp">LoadChart</span></div>
@@ -246,7 +254,7 @@
       </div><div class="arq">
         <div class="cam"><span class="mono">src/graficos/topRounded.js</span>
           <span class="exp">topRounded</span></div>
-        <span class="num">10 l · 4↓</span>
+        <span class="num">10 l · 5↓</span>
       </div>
     </div>
   </div><div class="camada" onclick="this.classList.toggle('aberta')">
@@ -254,7 +262,7 @@
       <div class="faixa" style="background:#30D158"></div>
       <h3>Telas</h3>
       <span class="pin">telas</span>
-      <span class="met"><span>6 arquivos</span><span>1.699 linhas</span><span class="seta">›</span></span>
+      <span class="met"><span>6 arquivos</span><span>1.897 linhas</span><span class="seta">›</span></span>
     </header>
     <p>As quatro abas e as duas folhas modais. Só desenham — nenhuma faz conta.</p>
     <div class="corpo">
@@ -267,6 +275,10 @@
           <span class="exp">Analise</span></div>
         <span class="num">392 l · 1↓</span>
       </div><div class="arq">
+        <div class="cam"><span class="mono">src/telas/Tendencias.jsx</span>
+          <span class="exp">Tendencias</span></div>
+        <span class="num">392 l · 1↓</span>
+      </div><div class="arq">
         <div class="cam"><span class="mono">src/telas/Historico.jsx</span>
           <span class="exp">Historico</span></div>
         <span class="num">321 l · 1↓</span>
@@ -274,10 +286,6 @@
         <div class="cam"><span class="mono">src/telas/RegistrarSheet.jsx</span>
           <span class="exp">RegistrarSheet</span></div>
         <span class="num">197 l · 1↓</span>
-      </div><div class="arq">
-        <div class="cam"><span class="mono">src/telas/Tendencias.jsx</span>
-          <span class="exp">Tendencias</span></div>
-        <span class="num">194 l · 1↓</span>
       </div><div class="arq">
         <div class="cam"><span class="mono">src/telas/Ajustes.jsx</span>
           <span class="exp">Ajustes</span></div>
